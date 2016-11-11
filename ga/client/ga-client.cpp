@@ -76,6 +76,7 @@ static int windowSizeY[VIDEO_SOURCE_CHANNEL_MAX];
 static int nativeSizeX[VIDEO_SOURCE_CHANNEL_MAX];
 static int nativeSizeY[VIDEO_SOURCE_CHANNEL_MAX];
 static map<unsigned int, int> windowId2ch;
+static int bitrateAdaptationEnabled = 0;
 
 // save files
 static FILE *savefp_keyts = NULL;
@@ -697,6 +698,7 @@ main(int argc, char *argv[]) {
 	pthread_t rtspthread;
 	pthread_t ctrlthread;
 	pthread_t watchdog;
+	pthread_t bitrateadaptationthread;
 	char savefile_keyts[128];
 	//
 #ifdef ANDROID
@@ -721,6 +723,11 @@ main(int argc, char *argv[]) {
 	if(ga_conf_readbool("control-relative-mouse-mode", 0) != 0) {
 		rtsperror("*** Relative mouse mode enabled.\n");
 		relativeMouseMode = 1;
+	}
+	//
+	if(ga_conf_readbool("bitrate_adaptation", 0) != 0){
+		rtsperror("*** Bitrate adaptation prototype enabled\n");
+		bitrateAdaptationEnabled = 1;
 	}
 	//
 	if(ga_conf_readv("save-key-timestamp", savefile_keyts, sizeof(savefile_keyts)) != NULL) {
@@ -811,6 +818,15 @@ main(int argc, char *argv[]) {
 	}
 	pthread_detach(rtspthread);
 	//
+	if(bitrateAdaptationEnabled != 0){
+		if(pthread_create(&bitrateadaptationthread, NULL, bitrateadaptation_thread, NULL) != 0){
+			rtsperror("Cannot create bitrate adaptation thread.\n");
+			return -1;
+		}
+
+		pthread_detach(bitrateadaptationthread);
+	}
+	//
 	while(rtspThreadParam.running) {
 		if(SDL_WaitEvent(&event)) {
 			ProcessEvent(&event);
@@ -824,6 +840,8 @@ main(int argc, char *argv[]) {
 	pthread_cancel(rtspthread);
 	if(rtspconf->ctrlenable)
 		pthread_cancel(ctrlthread);
+	if(bitrateAdaptationEnabled != 0)
+		pthread_cancel(bitrateadaptationthread);
 	pthread_cancel(watchdog);
 #endif
 	//SDL_WaitThread(thread, &status);

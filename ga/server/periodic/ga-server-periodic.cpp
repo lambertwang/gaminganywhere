@@ -205,6 +205,39 @@ handle_netreport(ctrlmsg_system_t *msg) {
 	return;
 }
 
+void
+handle_reconfig(ctrlmsg_system_t *msg){
+	ctrlmsg_system_reconfig_t *msgn = (ctrlmsg_system_reconfig_t*) msg;
+
+	// Create reconfigure struct
+	ga_ioctl_reconfigure_t reconf;
+	bzero(&reconf, sizeof(reconf));
+
+	// Copy values from msg to msgn
+	reconf->id = msgn->id;
+	reconf->crf = msgn->crf;
+	reconf->framerate_n = msgn->framerate;
+	reconf->framerate_d = 1;
+	reconf->bitrateKbps = msgn->bandwidth;
+	reconf->width = msgn->width;
+	reconf->height = msgn->height;
+
+
+	// encoder
+	if(m_vencoder->ioctl) {
+		err = m_vencoder->ioctl(GA_IOCTL_RECONFIGURE, sizeof(reconf), &reconf);
+		if(err < 0) {
+			ga_error("reconfigure encoder failed, err = %d.\n", err);
+		} else {
+			ga_error("reconfigure encoder OK, bitrate=%d; bufsize=%d; framerate=%d/%d.\n",
+					reconf.bitrateKbps, reconf.bufsize,
+					reconf.framerate_n, reconf.framerate_d);
+		}
+	}
+
+	return;
+}
+
 int
 main(int argc, char *argv[]) {
 	int notRunning = 0;

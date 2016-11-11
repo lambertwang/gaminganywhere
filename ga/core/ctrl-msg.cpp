@@ -32,7 +32,8 @@
 static ctrlsys_handler_t ctrlsys_handler_list[] = {
 	NULL,	/* 0 = CTRL_MSGSYS_SUBTYPE_NULL */
 	NULL,	/* 1 = CTRL_MSGSYS_SUBTYPE_SHUTDOWN */
-	NULL	/* 2 = CTRL_MSGSYS_SUBTYPE_NETREPORT */
+	NULL,	/* 2 = CTRL_MSGSYS_SUBTYPE_NETREPORT */
+	NULL	/* 3 = CTRL_MSGSYS_SUBTYPE_RECONFIG */
 };
 
 ctrlsys_handler_t
@@ -140,3 +141,27 @@ ctrlsys_netreport(ctrlmsg_t *msg, unsigned int duration,
 	return msg;
 }
 
+/**
+ * @TODO: FILL OUT/CORRECT COMMENTS
+ * ctrlsys_reconfig
+ * @param msg
+ * 	Pointer to reconfig struct to fill in
+ * @param bitrate
+ *	Bitrate for reconfiguration. -1 to leave unchanged.
+ * @param framerate
+ *	Framerate for reconfiguration. -1 to leave unchanged. This value defaults to unchanged.
+ */
+ctrlmsg_t *
+ctrlsys_reconfig(ctrlmsg_t *msg, int crf, int framerate, int bitrate, int width, int height) {
+	ctrlmsg_system_reconfig_t *msgn = (ctrlmsg_system_reconfig_t*) msg;
+	bzero(msg, sizeof(ctrlmsg_system_reconfig_t));
+	msgn->msgsize = htons(sizeof(ctrlmsg_system_reconfig_t));
+	msgn->msgtype = CTRL_MSGTYPE_SYSTEM;
+	msgn->subtype = CTRL_MSGSYS_SUBTYPE_RECONFIG;
+	msgn->crf = htonl(crf);
+	msgn->framerate = htonl(framerate);
+	msgn->bitrate = htonl(bitrate);
+	msgn->width = htonl(width);
+	msgn->height = htonl(height);
+	return msg;
+}

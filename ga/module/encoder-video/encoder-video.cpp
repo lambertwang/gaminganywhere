@@ -31,6 +31,7 @@
 
 //// Prevent use of GLOBAL_HEADER to pass parameters, disabled by default
 //#define STANDALONE_SDP	1
+//#define TIMING_TESTS
 
 static struct RTSPConf *rtspconf = NULL;
 
@@ -165,11 +166,11 @@ vencoder_reconfigure(int iid) {
 	int ret = 0;
 	ga_ioctl_reconfigure_t *reconf = &vencoder_reconf[iid];
 	pthread_mutex_lock(&vencoder_reconf_mutex[iid]);
-	///////// Timing tests
+#ifdef TIMING_TESTS
 	struct timeval time_start;
 	struct timeval time_end;
 	gettimeofday(&time_start, NULL);
-	///////// Timing tests
+#endif
 	if(reconf->id >= 0) {
 		ga_error("video encoder: Reconfiguring video encoder\n");
 		int outputW, outputH;
@@ -216,10 +217,10 @@ vencoder_reconfigure(int iid) {
 		}
 		reconf->id = -1;
 
-		///////// Timing tests
+#ifdef TIMING_TESTS
 		gettimeofday(&time_end, NULL);
 		ga_log("Time elapsed to reconfigure encoder: %d usec\n", (time_end.tv_sec - time_start.tv_sec) * 1000000 + (time_end.tv_usec - time_start.tv_usec));
-		///////// Timing tests
+#endif
 	}
 	pthread_mutex_unlock(&vencoder_reconf_mutex[iid]);
 	return ret;
@@ -289,10 +290,10 @@ vencoder_threadproc(void *arg) {
 		outputW, outputH, rtspconf->video_fps,
 		nalbuf_size, pic_in_size);
 	//
-	///////// Timing tests
+#ifdef TIMING_TESTS
 	struct timeval time_current;
 	gettimeofday(&time_current, NULL);
-	///////// Timing tests
+#endif
 	while(vencoder_started != 0 && encoder_running() > 0) {
 		AVPacket pkt;
 		int got_packet = 0;
@@ -300,10 +301,10 @@ vencoder_threadproc(void *arg) {
 		struct timeval tv;
 		struct timespec to;
 		gettimeofday(&tv, NULL);
-		///////// Timing tests
+#ifdef TIMING_TESTS
 		ga_log("Frame time elapsed: %d usec\n", (tv.tv_sec - time_current.tv_sec) * 1000000 + (tv.tv_usec - time_current.tv_usec));
 		time_current = tv;
-		///////// Timing tests
+#endif
 		to.tv_sec = tv.tv_sec+1;
 		to.tv_nsec = tv.tv_usec * 1000;
 		// Reconfigure encoder (if required)

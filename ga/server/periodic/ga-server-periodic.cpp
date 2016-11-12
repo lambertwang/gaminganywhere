@@ -29,7 +29,7 @@
 #include "controller.h"
 #include "encoder-common.h"
 
-#define	TEST_RECONFIGURE
+// #define	TEST_RECONFIGURE
 
 // image source pipeline:
 //	vsource -- [vsource-%d] --> filter -- [filter-%d] --> encoder
@@ -214,18 +214,18 @@ handle_reconfig(ctrlmsg_system_t *msg){
 	bzero(&reconf, sizeof(reconf));
 
 	// Copy values from msg to msgn
-	reconf->id = msgn->id;
-	reconf->crf = msgn->crf;
-	reconf->framerate_n = msgn->framerate;
-	reconf->framerate_d = 1;
-	reconf->bitrateKbps = msgn->bandwidth;
-	reconf->width = msgn->width;
-	reconf->height = msgn->height;
+	reconf.id = msgn->reconfId;
+	reconf.crf = msgn->crf;
+	reconf.framerate_n = msgn->framerate;
+	reconf.framerate_d = 1;
+	reconf.bitrateKbps = msgn->bitrate;
+	reconf.width = msgn->width;
+	reconf.height = msgn->height;
 
 
 	// encoder
 	if(m_vencoder->ioctl) {
-		err = m_vencoder->ioctl(GA_IOCTL_RECONFIGURE, sizeof(reconf), &reconf);
+		int err = m_vencoder->ioctl(GA_IOCTL_RECONFIGURE, sizeof(reconf), &reconf);
 		if(err < 0) {
 			ga_error("reconfigure encoder failed, err = %d.\n", err);
 		} else {
@@ -240,7 +240,6 @@ handle_reconfig(ctrlmsg_system_t *msg){
 
 int
 main(int argc, char *argv[]) {
-	int notRunning = 0;
 #ifdef WIN32
 	if(CoInitializeEx(NULL, COINIT_MULTITHREADED) < 0) {
 		fprintf(stderr, "cannot initialize COM.\n");
@@ -277,6 +276,7 @@ main(int argc, char *argv[]) {
 	if(run_modules() < 0)	 	{ return -1; }
 	// enable handler to monitored network status
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_NETREPORT, handle_netreport);
+	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_RECONFIG, handle_reconfig);
 	//
 #ifdef TEST_RECONFIGURE
 	pthread_t t;

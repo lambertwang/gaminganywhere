@@ -16,12 +16,17 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "ga-common.h"
-#include "ctrl-msg.h"
+#include <stdlib.h>
+#ifndef WIN32
+#include <unistd.h>
+#endif
 
-static void *
-test_reconfig(void *) {
-	int s = 0, err;
+#include "ga-common.h"
+#include "controller.h"
+
+void *
+bitrateadaptation_thread(void *param) {
+	int s = 0;
 	int kbitrate[] = { 3000, 100 };
 	ga_error("reconfigure thread started ...\n");
 	while(1) {
@@ -29,10 +34,12 @@ test_reconfig(void *) {
 #ifdef WIN32
 		Sleep(20 * 1000);
 #else
-		sleep(100);
+		sleep(3);
 #endif
+		ga_error("Sending reconfiguration message\n");
+		ctrlsys_netreport(&m, 0, 0, 0, 0, 0, 0);
 		ctrlsys_reconfig(&m, 0, 0, 0, kbitrate[s%2], 0, 0);
-		ctrl_client_sendmsg(&m, sizeof(ctrlmsg_ssytem_reconfig_t));
+		ctrl_client_sendmsg(&m, sizeof(ctrlmsg_system_reconfig_t));
 
 		s = (s + 1) % 6;
 	}

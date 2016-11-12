@@ -59,6 +59,7 @@ ctrlsys_set_handler(unsigned char subtype, ctrlsys_handler_t handler) {
 static int 
 ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 	ctrlmsg_system_netreport_t *netreport;
+	ctrlmsg_system_reconfig_t *reconf;
 	msg->msgsize = ntohs(msg->msgsize);
 	switch(msg->subtype) {
 	/* no conversion needed, and no size checking */
@@ -75,6 +76,17 @@ ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 		netreport->pktloss  = htonl(netreport->pktloss);
 		netreport->bytecount = htonl(netreport->bytecount);
 		netreport->capacity = htonl(netreport->capacity);
+		break;
+	case CTRL_MSGSYS_SUBTYPE_RECONFIG:
+		if(msg->msgsize != sizeof(ctrlmsg_system_reconfig_t))
+			return -1;
+		reconf = (ctrlmsg_system_reconfig_t*) msg;
+		reconf->reconfId = htonl(reconf->reconfId);
+		reconf->crf = htonl(reconf->crf);
+		reconf->framerate = htonl(reconf->framerate);
+		reconf->bitrate = htonl(reconf->bitrate);
+		reconf->width = htonl(reconf->width);
+		reconf->height = htonl(reconf->height);
 		break;
 	default:
 		return -1;
@@ -151,8 +163,10 @@ ctrlsys_netreport(ctrlmsg_t *msg, unsigned int duration,
  * @param framerate
  *	Framerate for reconfiguration. -1 to leave unchanged. This value defaults to unchanged.
  */
-ctrlmsg_t *
-ctrlsys_reconfig(ctrlmsg_t *msg, int crf, int framerate, int bitrate, int width, int height) {
+ctrlmsg_t * 
+ctrlsys_reconfig(ctrlmsg_t *msg, 
+		int reconfId, int crf, int framerate, 
+		int bitrate, int width, int height) {
 	ctrlmsg_system_reconfig_t *msgn = (ctrlmsg_system_reconfig_t*) msg;
 	bzero(msg, sizeof(ctrlmsg_system_reconfig_t));
 	msgn->msgsize = htons(sizeof(ctrlmsg_system_reconfig_t));

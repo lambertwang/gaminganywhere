@@ -47,6 +47,7 @@ extern "C" {
 
 #include "controller.h"
 #include "ctrl-sdl.h"
+#include "bitrateadaptation.h"
 
 #include "ga-common.h"
 #include "ga-conf.h"
@@ -725,7 +726,7 @@ main(int argc, char *argv[]) {
 		relativeMouseMode = 1;
 	}
 	//
-	if(ga_conf_readbool("bitrate_adaptation", 0) != 0){
+	if(ga_conf_readbool("bitrate-adaptation", 0) != 0){
 		rtsperror("*** Bitrate adaptation prototype enabled\n");
 		bitrateAdaptationEnabled = 1;
 	}

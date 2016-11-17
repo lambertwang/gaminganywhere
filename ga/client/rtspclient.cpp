@@ -634,7 +634,7 @@ typedef struct bbr_btlbw_record_s {
 // Record windowed maximum of delivery rate
 #define BBR_BTLBW_MAX 256
 #define BBR_BTLBW_WINDOW_SIZE_US (1000 * 1000)
-#define BBR_BTLBW_REPORT_PERIOD_US (250 * 1000)
+#define BBR_BTLBW_REPORT_PERIOD_US (500 * 1000)
 static struct bbr_btlbw_record_s bbr_btlbw[BBR_BTLBW_MAX];
 static unsigned int bbr_btlbw_start = 0;
 static unsigned int bbr_btlbw_head = 0;
@@ -711,6 +711,7 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 			seek = (seek + 1) % BBR_BTLBW_MAX;
 			i++;
 		}
+		// ga_error("Window size: %d\n", i);
 		
 		ctrlmsg_t m;
 		ctrlsys_bbrreport(&m,

@@ -60,6 +60,7 @@ static int
 ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 	ctrlmsg_system_netreport_t *netreport;
 	ctrlmsg_system_reconfig_t *reconf;
+	ctrlmsg_system_bbrreport_t *bbrreport;
 	msg->msgsize = ntohs(msg->msgsize);
 	switch(msg->subtype) {
 	/* no conversion needed, and no size checking */
@@ -87,6 +88,14 @@ ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 		reconf->bitrate = htonl(reconf->bitrate);
 		reconf->width = htonl(reconf->width);
 		reconf->height = htonl(reconf->height);
+		break;
+	case CTRL_MSGSYS_SUBTYPE_BBRREPORT:
+		if(msg->msgsize != sizeof(ctrlmsg_system_bbrreport_t))
+			return -1;
+		bbrreport = (ctrlmsg_system_bbrreport_t*) msg;
+		bbrreport->duration = htonl(bbrreport->duration);
+		bbrreport->bytecount = htonl(bbrreport->bytecount);
+		bbrreport->rcvrate = htonl(bbrreport->rcvrate);
 		break;
 	default:
 		return -1;
@@ -177,5 +186,38 @@ ctrlsys_reconfig(ctrlmsg_t *msg,
 	msgn->bitrate = htonl(bitrate);
 	msgn->width = htonl(width);
 	msgn->height = htonl(height);
+	return msg;
+}
+
+/**
+ * @TODO: Write this comment
+ *
+ * Build a network statistics report message, which is sent from a client to a server
+ *
+ * @param msg [in]	The structure to store the built message.
+ *			The size of the structure must be at least \a sizeof(ctrlmsg_system_netreport_t)
+ * @param duration [in]	The duration of monitored numbers (in microseconds).
+ * @param framecount [in] Number of received frames in \a duration.
+ * @param pktcount [in] Number of all packets in \a duration (including lost packets).
+ * @param pktloss [in] Number of lost packets in \a duration.
+ * @param bytecount [in] Number of received payload size in \a duration (in bytes).
+ * @param capacity [in] Estimated network capacity (in bits per second).
+ *
+ */
+ctrlmsg_t *
+ctrlsys_bbrreport(ctrlmsg_t *msg, 
+		unsigned int framecount,
+		unsigned int duration, 
+		unsigned int bytecount,
+		unsigned int rcvrate) {
+	ctrlmsg_system_bbrreport_t *msgn = (ctrlmsg_system_bbrreport_t*) msg;
+	bzero(msg, sizeof(ctrlmsg_system_bbrreport_t));
+	msgn->msgsize = htons(sizeof(ctrlmsg_system_bbrreport_t));
+	msgn->msgtype = CTRL_MSGTYPE_SYSTEM;
+	msgn->subtype = CTRL_MSGSYS_SUBTYPE_BBRREPORT;
+	msgn->framecount = framecount;
+	msgn->duration = htonl(duration);
+	msgn->bytecount = htonl(bytecount);
+	msgn->rcvrate = htonl(rcvrate);
 	return msg;
 }

@@ -94,6 +94,8 @@ liveserver_main(void *arg) {
 //////// qos report functions
 
 static std::map<RTPSink*, std::map<unsigned/*SSRC*/,qos_server_record_t> > sinkmap;
+static pthread_mutex_t m_rtt_map;
+static std::map<unsigned int, unsigned int> rtt_map;
 static TaskToken qos_task = NULL;
 static int qos_started = 0;
 static struct timeval qos_tv;
@@ -127,6 +129,15 @@ qos_server_report(void *clientData) {
 				mi->second[ssrc] = qr;
 				continue;
 			}
+			//
+			pthread_mutex_lock(&m_rtt_map);
+			std::map<unsigned int, unsigned int>::iterator rtt_m;
+			if ((rtt_m = rtt_map.find(ssrc)) == rtt_map.end()) {
+				rtt_map[ssrc] = stats->roundTripDelay();
+			} else {
+				rtt_m->second = stats->roundTripDelay();
+			}
+			pthread_mutex_unlock(&m_rtt_map);
 			//
 			elapsed = tvdiff_us(&now, &mj->second.timestamp);
 			if(elapsed < QOS_SERVER_REPORT_INTERVAL_MS * 1000)
@@ -189,18 +200,32 @@ qos_server_schedule() {
 	return;
 }
 
+unsigned int
+qos_server_rtt(unsigned int ssrc) {
+	unsigned int ret = 0;
+	pthread_mutex_lock(&m_rtt_map);
+	std::map<unsigned int, unsigned int>::iterator mi;
+	for (mi = rtt_map.begin(); mi != rtt_map.end(); mi++) {
+		ret += mi->second / rtt_map.size();
+	}
+	pthread_mutex_unlock(&m_rtt_map);
+	return ret;
+}
+
 int
 qos_server_start() {
 	if(env == NULL)
 		return -1;
 	gettimeofday(&qos_tv, NULL);
 	qos_started = 1;
+	pthread_mutex_init(&m_rtt_map, NULL);
 	qos_server_schedule();
 	return 0;
 }
 
 int
 qos_server_stop() {
+	pthread_mutex_destroy(&m_rtt_map);
 	qos_started = 0;
 	return 0;
 }

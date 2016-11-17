@@ -37,7 +37,6 @@ bitrateadaptation_thread(void *param) {
 		sleep(3);
 #endif
 		ga_error("Sending reconfiguration message\n");
-		ctrlsys_netreport(&m, 0, 0, 0, 0, 0, 0);
 		ctrlsys_reconfig(&m, 0, 0, 0, kbitrate[s%2], 0, 0);
 		ctrl_client_sendmsg(&m, sizeof(ctrlmsg_system_reconfig_t));
 

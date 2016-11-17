@@ -238,6 +238,46 @@ handle_reconfig(ctrlmsg_system_t *msg){
 	return;
 }
 
+typedef struct bbr_rtt_s {
+	struct timeval record_time;
+	unsigned int rtt;
+}	bbr_rtt_t;
+
+#define BBR_RTT_MAX 256
+// #define BBR_RTT_WINDOW_SIZE_US (20 * 1000 * 1000)
+#define BBR_RTT_WINDOW_SIZE 80 // A constant is probably good enough for now
+#define BBR_STATE_STARTUP 0
+#define BBR_STATE_DRAIN 1
+#define BBR_STATE_PROBE 2
+
+static struct bbr_rtt_s bbr_rtt[BBR_RTT_MAX];
+static unsigned int bbr_rtt_start = 0;
+static unsigned int bbr_rtt_head = 0;
+
+void
+handle_bbrreport(ctrlmsg_system_t *msg) {
+	ctrlmsg_system_bbrreport_t *msgn = (ctrlmsg_system_bbrreport_t*) msg;
+	unsigned int latest_rtt = 0;
+	m_server->ioctl(GA_IOCTL_CUSTOM, sizeof(unsigned int *), &latest_rtt);
+	if (latest_rtt == 0) {
+		ga_error("No RTT recorded yet\n");
+	} else {
+		bbr_rtt[bbr_rtt_head].rtt = latest_rtt;
+
+		unsigned int rtt_min = UINT_MAX;
+		int seek = (bbr_rtt_head + BBR_RTT_MAX - BBR_RTT_WINDOW_SIZE) % BBR_RTT_MAX;
+		while (seek != bbr_rtt_head) {
+			if (bbr_rtt[bbr_rtt_head].rtt < rtt_min) {
+				rtt_min = bbr_rtt[bbr_rtt_head].rtt;
+			}
+			seek = (seek + 1) % BBR_RTT_MAX;
+		}
+
+		ga_error("RTT: %u ms rcvrate: %d frames: %d\n", rtt_min * 1000 / 65536, msgn->rcvrate, msgn->framecount);
+	}
+	return;
+}
+
 int
 main(int argc, char *argv[]) {
 #ifdef WIN32
@@ -277,6 +317,7 @@ main(int argc, char *argv[]) {
 	// enable handler to monitored network status
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_NETREPORT, handle_netreport);
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_RECONFIG, handle_reconfig);
+	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_BBRREPORT, handle_bbrreport);
 	//
 #ifdef TEST_RECONFIGURE
 	pthread_t t;

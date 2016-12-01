@@ -48,6 +48,7 @@ extern "C" {
 #include "controller.h"
 #include "ctrl-sdl.h"
 #include "bitrateadaptation.h"
+#include "udpping.h"
 
 #include "ga-common.h"
 #include "ga-conf.h"
@@ -700,6 +701,7 @@ main(int argc, char *argv[]) {
 	pthread_t ctrlthread;
 	pthread_t watchdog;
 	pthread_t bitrateadaptationthread;
+	pthread_t udppingthread;
 	char savefile_keyts[128];
 	//
 #ifdef ANDROID
@@ -824,8 +826,13 @@ main(int argc, char *argv[]) {
 			rtsperror("Cannot create bitrate adaptation thread.\n");
 			return -1;
 		}
+		if(pthread_create(&udppingthread, NULL, udpping_thread, NULL) != 0){
+			rtsperror("Cannot create UDP ping thread.\n");
+			return -1;
+		}
 
 		pthread_detach(bitrateadaptationthread);
+		pthread_detach(udppingthread);
 	}
 	//
 	while(rtspThreadParam.running) {
@@ -843,6 +850,7 @@ main(int argc, char *argv[]) {
 		pthread_cancel(ctrlthread);
 	if(bitrateAdaptationEnabled != 0)
 		pthread_cancel(bitrateadaptationthread);
+		pthread_cancel(udppingthread);
 	pthread_cancel(watchdog);
 #endif
 	//SDL_WaitThread(thread, &status);

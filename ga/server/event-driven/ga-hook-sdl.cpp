@@ -1,1 +1,1 @@
-../event-posix/ga-hook-sdl.cpp
+#include "../event-posix/ga-hook-sdl.cpp"

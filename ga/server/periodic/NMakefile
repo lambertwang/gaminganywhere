@@ -1,5 +1,5 @@
 
-!include <..\NMakefile.def>
+!include <..\..\module\NMakefile.def>
 
 LIBS		= $(LIB_SYSTEM) $(LIB_SDL) $(LIB_FFMPEG) $(LIB_PTHREAD) libga.lib
 #LDFLAGS	= -rdynamic -L../../core -Wl,--whole-archive -lga -Wl,--no-whole-archive $(AVCLD) $(SDLLD)

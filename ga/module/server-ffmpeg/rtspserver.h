@@ -30,8 +30,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "ffmpeg/rtsp.h"
-#include "ffmpeg/rtspcodes.h"
+#include "ffmpeg-1.1/rtsp.h"
+#include "ffmpeg-1.1/rtspcodes.h"
 int ffio_open_dyn_packet_buf(AVIOContext **, int);
 #ifdef __cplusplus
 }

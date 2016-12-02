@@ -178,12 +178,12 @@ vencoder_reconfigure(int iid) {
 		for (int i = 0; i < rtspconf->vso->size(); i += 2) {
 			if ((*rtspconf->vso)[i].compare("b") == 0) {
 				if (reconf->bitrateKbps > 0)
-					(*rtspconf->vso)[i+1] = std::to_string(reconf->bitrateKbps * 1000);
+					(*rtspconf->vso)[i+1] = std::to_string(static_cast<long long> (reconf->bitrateKbps * 1000));
 				continue;
 			}
 			if ((*rtspconf->vso)[i].compare("crf") == 0) {
 				if (reconf->crf > 0)
-					(*rtspconf->vso)[i+1] = std::to_string(reconf->crf);
+					(*rtspconf->vso)[i+1] = std::to_string(static_cast<long long> (reconf->crf));
 				continue;
 			}
 		}

@@ -1,1 +1,1 @@
-../event-posix/ga-hook-common.cpp
+#include "../event-posix/ga-hook-common.cpp"

@@ -33,10 +33,16 @@
 #include "controller.h"
 
 #define PORT 8556
+#define BUFSIZE 512
 
 void *
 udpping_thread(void *param) {
 	int counter = 0;
+	int recvlen;
+	unsigned char buf[BUFSIZE];
+	struct timeval begin, end;
+	double startTime[100]; // Starting times, placed in the index of the counter
+	double respTime[100]; // RTT values
 
 	// Initialize socket
 	#ifdef _WIN32
@@ -79,18 +85,40 @@ udpping_thread(void *param) {
 	memset((char *)&servaddr, 0, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_port = htons(PORT);
+	socklen_t addrlen = sizeof(servaddr);
 	//servaddr.sin_addr.s_addr = [IP address, pull from main]
 
 	while(1){
 		// Convert to string
-		char str[10];
+		char str[5];
 		sprintf(str, "%d", counter);
 
+		// Get start time and store for packet value
+		gettimeofday(&begin, NULL);
+		startTime[counter] = ((begin.tv_sec * 1000.0) + (begin.tv_usec / 1000.0));
+
+		// Send a packet
 		if(sendto(sock, str, strlen(str), 0, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0){
 			ga_error("Sendto failed\n");
 			return NULL;
 		}
+
+		// Wait to receive a packet
+		recvlen = recvfrom(sock, buf, BUFSIZE, 0, (struct sockaddr *)&servaddr, &addrlen);
+		if(recvlen > 0){
+			buf[recvlen] = 0;
+			// Record time of value and compute RTT
+			// TODO: pull integer from message, use that counter value
+			gettimeofday(&end, NULL);
+			double endTime = ((end.tv_sec * 1000.0) + (end.tv_usec / 1000.0));
+			respTime[counter] = endTime - startTime[counter];
+		}
+
+		// Increment counter: only the previous 100 entries are tracked.
 		counter++;
+		if(counter >= 100){
+			counter = 0;
+		}
 	}
 
 	#ifdef _WIN32

@@ -1,1 +1,1 @@
-vsource-desktop.cpp
+#include "vsource-desktop.cpp"

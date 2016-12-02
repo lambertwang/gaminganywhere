@@ -1,1 +1,1 @@
-../event-posix/ga-hook-sdlaudio.cpp
+#include "../event-posix/ga-hook-sdlaudio.cpp"

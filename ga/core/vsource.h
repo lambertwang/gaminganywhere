@@ -32,12 +32,12 @@
 
 /** Define the default width of the max resolution
  * (can be tuned by configuration).
- * Note: Apple MBP 13" retina is 2560x1600 */
-#define	VIDEO_SOURCE_DEF_MAXWIDTH	2560
+ * Note: Microsoft Surface Book is 3000x2000 */
+#define	VIDEO_SOURCE_DEF_MAXWIDTH	3000
 /** Define the default height of the max resolution
  * (can be tuned by configuration).
- * Note: Apple MBP 13" retina is 2560x1600 */
-#define	VIDEO_SOURCE_DEF_MAXHEIGHT	1600
+ * Note: Microsoft Surface Book is 3000x2000 */
+#define	VIDEO_SOURCE_DEF_MAXHEIGHT	2000
 /** Define the maximum number of video planes */
 #define	VIDEO_SOURCE_MAX_STRIDE		4
 /** Define the maximum number of video sources. This value must be at least 1 */

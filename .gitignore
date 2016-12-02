@@ -1,5 +1,6 @@
 # Dependencies need to be unzipped, but we don't commit them
 /bin
+/bin.win32
 /deps.win32
 /deps.win64
 /deps.posix*

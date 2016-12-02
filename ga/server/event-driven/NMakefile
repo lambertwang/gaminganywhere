@@ -1,5 +1,5 @@
 
-!include <..\NMakefile.def>
+!include <..\..\module\NMakefile.def>
 
 CXX_FLAGS	= $(CXX_FLAGS) -I"C:\Microsoft DirectX SDK\Include"
 LIB_PATH	= $(LIB_PATH) /libpath:..\..\core /libpath:"C:\Microsoft DirectX SDK\Lib\$(GA_PLATFORM)"

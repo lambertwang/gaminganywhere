@@ -649,7 +649,7 @@ sdlmsg_kb_init() {
 			key != NULL;
 			key = ga_conf_mapnextkey("key-block-scancode", keybuf, sizeof(keybuf))) {
 			//
-			unsigned short sc = strtol(key, NULL, 0);
+			unsigned short sc = (unsigned short) strtol(key, NULL, 0);
 			if(sc == 0)
 				continue;
 			//
@@ -668,7 +668,7 @@ sdlmsg_kb_init() {
 			key != NULL;
 			key = ga_conf_mapnextkey("key-block-keycode", keybuf, sizeof(keybuf))) {
 			//
-			unsigned short kc = strtol(key, NULL, 0);
+			unsigned short kc = (unsigned short) strtol(key, NULL, 0);
 			if(kc == 0)
 				continue;
 			//

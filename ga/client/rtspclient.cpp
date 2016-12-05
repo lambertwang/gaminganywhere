@@ -769,7 +769,7 @@ rtp_packet_handler(void *clientData, unsigned char *packet, unsigned &packetSize
 	}
 	//
 	bandwidth_estimator_update(ssrc, seqnum, tv, timestamp, packetSize);
-	bbr_update(ssrc, seqnum, tv, timestamp, packetSize);
+	// bbr_update(ssrc, seqnum, tv, timestamp, packetSize);
 	pktloss_monitor_update(ssrc, seqnum);
 	//
 	return;

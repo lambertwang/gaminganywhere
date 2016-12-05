@@ -181,7 +181,7 @@ vencoder_reconfigure(int iid) {
 		// ga_error("Closing encoder context\n");
 		// avcodec_close(vencoder[iid]);
 
-		for (int i = 0; i < rtspconf->vso->size(); i += 2) {
+		for (unsigned int i = 0; i < rtspconf->vso->size(); i += 2) {
 			if ((*rtspconf->vso)[i].compare("b") == 0) {
 				if (reconf->bitrateKbps > 0)
 					(*rtspconf->vso)[i+1] = std::to_string(static_cast<long long> (reconf->bitrateKbps * 1000));

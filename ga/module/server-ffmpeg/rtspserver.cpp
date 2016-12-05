@@ -657,7 +657,13 @@ rtp_new_av_stream(RTSPContext *ctx, struct sockaddr_in *sin, int streamid, enum 
 		(int) fmtctx->pb->max_packet_size);
 	if(ctx->lower_transport[streamid] == RTSP_LOWER_TRANSPORT_UDP) {
 		if(rtp_open_ports(ctx, streamid) < 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+			char errmsg[ERR_MSG_LEN]; 
+			strerror_s(errmsg, ERR_MSG_LEN, errno);
+			ga_error("RTP: open ports failed - %s\n", errmsg);
+#else
 			ga_error("RTP: open ports failed - %s\n", strerror(errno));
+#endif
 			return -1;
 		}
 	}
@@ -1078,7 +1084,8 @@ rtspserver(void *arg) {
 	ctx.fd = s;
 	//
 	do {
-		int i, fdmax, active;
+		int i, fdmax;
+		int active;
 		fd_set rfds;
 		struct timeval to;
 		FD_ZERO(&rfds);
@@ -1094,7 +1101,13 @@ rtspserver(void *arg) {
 		to.tv_sec = 0;
 		to.tv_usec = 500000;
 		if((active = select(fdmax+1, &rfds, NULL, NULL, &to)) < 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+			char errmsg[ERR_MSG_LEN]; 
+			strerror_s(errmsg, ERR_MSG_LEN, errno);
+			ga_error("select() failed: %s\n", errmsg);
+#else
 			ga_error("select() failed: %s\n", strerror(errno));
+#endif
 			goto quit;
 		}
 		if(active == 0) {
@@ -1176,7 +1189,11 @@ rtspserver(void *arg) {
 				myseq = strtol(buf+6, NULL, 10);
 			}
 			if(strncasecmp("Session: ", buf, 9) == 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+				strcpy_s(mysession, sizeof(header->session_id), buf+9);
+#else
 				strcpy(mysession, buf+9);
+#endif
 			}
 			//
 			ff_rtsp_parse_line(header, buf, NULL, NULL);

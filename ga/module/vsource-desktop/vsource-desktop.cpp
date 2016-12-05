@@ -178,7 +178,6 @@ vsource_threadproc(void *arg) {
 	int i;
 	int token;
 	int frame_interval;
-	struct timeval tv;
 	dpipe_buffer_t *data;
 	vsource_frame_t *frame;
 	dpipe_t *pipe[SOURCES];
@@ -221,7 +220,7 @@ vsource_threadproc(void *arg) {
 		}
 		// token bucket based capturing
 		gettimeofday(&captureTv, NULL);
-		token += tvdiff_us(&captureTv, &lastTv);
+		token += (int) tvdiff_us(&captureTv, &lastTv);
 		if(token > (frame_interval<<1)) {
 			token = (frame_interval<<1);
 		}

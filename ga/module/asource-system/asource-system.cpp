@@ -122,8 +122,15 @@ asource_threadproc(void *arg) {
 		exit(-1);
 	}
 	if((fbuffer = (unsigned char*) malloc(audioparam.chunk_bytes)) == NULL) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+		char errmsg[ERR_MSG_LEN]; 
+		strerror_s(errmsg, ERR_MSG_LEN, errno);
+		ga_error("audio source: malloc failed (%d bytes) - %s\n",
+			audioparam.chunk_bytes, errmsg);
+#else
 		ga_error("audio source: malloc failed (%d bytes) - %s\n",
 			audioparam.chunk_bytes, strerror(errno));
+#endif
 		exit(-1);
 	}
 	//

@@ -32,6 +32,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+// #include <stdint.h>
 #include <x264.h>
 #ifdef __cplusplus
 }
@@ -248,7 +249,7 @@ vencoder_reconfigure(int iid) {
 		x264_encoder_parameters(encoder, &params);
 		//
 		if(reconf->crf > 0) {
-			params.rc.f_rf_constant = 1.0 * reconf->crf;
+			params.rc.f_rf_constant = (float) (1.0 * reconf->crf);
 			doit++;
 		}
 		if(reconf->framerate_n > 0) {

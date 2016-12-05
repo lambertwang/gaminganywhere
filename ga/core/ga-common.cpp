@@ -367,7 +367,7 @@ ga_openlog() {
 	if(ga_conf_readv("logfile", fn, sizeof(fn)) == NULL)
 		return;
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
-	if(fopen_s(&fp, fn, "at") != 0) {
+	if(fopen_s(&fp, fn, "at") == 0) {
 #else
 	if((fp = fopen(fn, "at")) != NULL) {
 #endif

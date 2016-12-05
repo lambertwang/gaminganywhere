@@ -33,8 +33,6 @@
 #include "ga-common.h"
 #include "controller.h"
 
-#define ERR_MSG_LEN 95 // buffer size = 94 char str + 1
-
 using namespace std;
 
 static char *myctrlid = NULL;

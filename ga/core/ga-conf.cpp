@@ -222,7 +222,7 @@ ga_conf_load(const char *filename) {
 	if(filename == NULL)
 		return -1;
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
-	if(fopen_s(&fp, filename, "rt") == 0) {
+	if(fopen_s(&fp, filename, "rt") != 0) {
 #else
 	if((fp = fopen(filename, "rt")) == NULL) {
 #endif

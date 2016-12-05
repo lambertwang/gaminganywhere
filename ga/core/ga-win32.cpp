@@ -103,7 +103,7 @@ usleep(long long waitTime) {
 	ms = waitTime / 1000;
 	waitTime %= 1000;
 	if(ms > 0) {
-		Sleep(ms);
+		Sleep((DWORD) ms);
 	}
 	// Sleep for the rest
 	if(waitTime > 0) do {

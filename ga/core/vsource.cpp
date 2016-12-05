@@ -681,9 +681,6 @@ video_source_mem_size(int channel) {
 	return vs == NULL ? 0 : (vs->max_height * vs->max_stride + VSOURCE_ALIGNMENT);
 }
 
-/** Return the larger value of \a x and \a y */
-#define	max(x, y)	((x) > (y) ? (x) : (y))
-
 /**
  * The generic function to setup video sources.
  *

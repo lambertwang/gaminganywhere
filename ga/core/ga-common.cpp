@@ -142,7 +142,11 @@ ga_writelog(struct timeval tv, const char *s) {
 	FILE *fp;
 	if(ga_logfile == NULL)
 		return;
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+	if(fopen_s(&fp, ga_logfile, "at") == 0) {
+#else
 	if((fp = fopen(ga_logfile, "at")) != NULL) {
+#endif
 		fprintf(fp, "[%d] %ld.%06ld %s", getpid(), tv.tv_sec, tv.tv_usec, s);
 		fclose(fp);
 	}
@@ -318,7 +322,7 @@ ga_dump_codecs() {
  */
 int
 ga_init(const char *config, const char *url) {
-	srand(time(0));
+	srand((unsigned int) time(0));
 	winsock_init();
 #ifndef ANDROID_NO_FFMPEG
 	av_register_all();
@@ -362,7 +366,11 @@ ga_openlog() {
 	//
 	if(ga_conf_readv("logfile", fn, sizeof(fn)) == NULL)
 		return;
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+	if(fopen_s(&fp, fn, "at") != 0) {
+#else
 	if((fp = fopen(fn, "at")) != NULL) {
+#endif
 		fclose(fp);
 		ga_logfile = strdup(fn);
 	}
@@ -396,7 +404,11 @@ static FILE *
 ga_save_init_internal(const char *filename, const char *mode) {
 	FILE *fp = NULL;
 	if(filename != NULL) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+		fopen_s(&fp, filename, mode);
+#else
 		fp = fopen(filename, mode);
+#endif
 		if(fp == NULL) {
 			ga_error("save file: open %s failed.\n", filename);
 		}

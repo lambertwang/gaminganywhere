@@ -22,9 +22,14 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <stdlib.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <Ws2tcpip.h>
+#endif
+
 #ifndef WIN32
 #include <unistd.h>
-#include <winsock2.h>
 #endif
 
 #include "ga-common.h"
@@ -168,7 +173,6 @@ udp_handler(void *) {
 			return NULL;
 		}
 	#else
-		int sock;
 		// Create socket
 		if((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0){
 			ga_error("Failed to create socket\n");
@@ -199,13 +203,13 @@ udp_handler(void *) {
 	// Listen for packets; if received, parrot them back
 	while(1){
 		// Reset buffer
-		memset(buf, '\0', PKTBUF);
+		//memset(buf, '\0', PKTBUF);
 
 		recvlen = recvfrom(sock, buf, PKTBUF, 0, (struct sockaddr *)&clntaddr, &addrlen);
 		if(recvlen > 0){
 			buf[recvlen] = 0;
 			// Send back
-			sendto(sock, buf[recvlen], strlen(buf[recvlen]), 0, (struct sockaddr *)&clntaddr, &addrlen);
+			sendto(sock, buf, recvlen, 0, (struct sockaddr *)&clntaddr, sizeof(clntaddr));
 		}
 	}
 

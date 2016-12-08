@@ -16,8 +16,18 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <arpa/inet.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <stdlib.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <Ws2tcpip.h>
+#endif
+
 #ifndef WIN32
 #include <unistd.h>
 #endif
@@ -30,6 +40,8 @@
 #include "encoder-common.h"
 
 // #define	TEST_RECONFIGURE
+#define PKTBUF 512
+#define PKTPORT 8556
 
 // image source pipeline:
 //	vsource -- [vsource-%d] --> filter -- [filter-%d] --> encoder
@@ -42,6 +54,7 @@ static char *filterpipe0 = "filter-0";
 static char *filter_param[] = { imagepipefmt, filterpipefmt };
 static char *video_encoder_param = filterpipefmt;
 static void *audio_encoder_param = NULL;
+static int pingHandleThreadStarted = 0;
 
 static struct gaRect *prect = NULL;
 static struct gaRect rect;
@@ -130,6 +143,91 @@ run_modules() {
 	if(m_server->start(NULL) < 0)		exit(-1);
 	//
 	return 0;
+}
+
+static void *
+udp_handler(void *) {
+	#ifdef _WIN32
+		SOCKET sock;
+		WSADATA wsa;
+	#else
+		int sock;
+	#endif
+	struct sockaddr_in myaddr;
+	struct sockaddr_in clntaddr;
+	socklen_t addrlen = sizeof(clntaddr);
+	int recvlen;
+	unsigned char buf[PKTBUF];
+
+	// Initialize socket
+	#ifdef _WIN32
+		WSADATA wsa;
+		SOCKET sock;
+		// Initialize winsock
+		if(WSAStartup(MAKEWORD(2,2),&wsa) != 0){
+			ga_error("Winsock failed to initialize\n");
+			exit(EXIT_FAILURE)
+		}
+		// Create socket
+		if((sock = socket(AF_INET, SOCK_DGRAM, 0)) == SOCKET_ERROR){
+			ga_error("Failed to create socket\n");
+			return NULL;
+		}
+	#else
+		// Create socket
+		if((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0){
+			ga_error("Failed to create socket\n");
+			return NULL;
+		}
+	#endif
+
+	// Set address structure
+	memset((char *)&myaddr, 0, sizeof(myaddr));
+	myaddr.sin_family = AF_INET;
+	myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	myaddr.sin_port = htons(PKTPORT);
+
+	#ifdef _WIN32
+		// Bind socket
+		if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) == INVALID_SOCKET){
+			ga_error("Failed to bind\n");
+			return NULL;
+		}
+	#else
+		// Bind socket
+		if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
+			ga_error("Failed to bind\n");
+			return NULL;
+		}
+	#endif
+
+	// Listen for packets; if received, parrot them back
+	while(1){
+		// Reset buffer
+		//memset(buf, '\0', PKTBUF);
+
+		recvlen = recvfrom(sock, buf, PKTBUF, 0, (struct sockaddr *)&clntaddr, &addrlen);
+		if(recvlen > 0){
+			buf[recvlen] = 0;
+			// Send back
+			sendto(sock, buf, recvlen, 0, (struct sockaddr *)&clntaddr, sizeof(clntaddr));
+		}
+	}
+
+	#ifdef _WIN32
+		WSACleanup();
+	#endif
+
+	int status = 0;
+	#ifdef _WIN32
+		status = shutdown(sock, SD_BOTH);
+		if(status == 0){ status = closesocket(sock); }
+	#else
+		status = shutdown(sock, SHUT_RDWR);
+		if(status == 0){ status = close(sock); }
+	#endif
+    
+	return NULL;
 }
 
 #ifdef TEST_RECONFIGURE
@@ -238,6 +336,22 @@ handle_reconfig(ctrlmsg_system_t *msg){
 	return;
 }
 
+void
+handle_udpping(ctrlmsg_system_t *msg){
+	pthread_t udppingthread;
+
+	// Only start the handler once, in case multiple ctrlmsg signals are sent.
+	if(pingHandleThreadStarted == 0){
+		pingHandleThreadStarted = 1;
+		if(pthread_create(&udppingthread, NULL, udp_handler, NULL) != 0){
+			ga_error("Cannot create UDP Handler thread.\n");
+			return;
+		}
+	}
+
+	return;
+}
+
 int
 main(int argc, char *argv[]) {
 #ifdef WIN32
@@ -277,6 +391,11 @@ main(int argc, char *argv[]) {
 	// enable handler to monitored network status
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_NETREPORT, handle_netreport);
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_RECONFIG, handle_reconfig);
+<<<<<<< HEAD
+=======
+	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_BBRREPORT, handle_bbrreport);
+	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_UDPPING, handle_udpping);
+>>>>>>> udpPinger
 	//
 #ifdef TEST_RECONFIGURE
 	pthread_t t;

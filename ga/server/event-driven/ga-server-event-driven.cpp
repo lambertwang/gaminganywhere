@@ -26,11 +26,6 @@
 
 int
 hook_and_launch(const char *ga_root, const char *config_path, const char *app_exe) {
-	PROCESS_INFORMATION procInfo;
-	STARTUPINFO startupInfo;
-	HINSTANCE hDLL;
-	int (*install_hook)(const char *, const char *, const char *);
-	int (*uninstall_hook)();
 	char cmdline[2048];
 	char buf[2048], *ptr;
 	int cmdpos, cmdspace = sizeof(cmdline);
@@ -49,7 +44,11 @@ hook_and_launch(const char *ga_root, const char *config_path, const char *app_ex
 	// handle environment variables
 	do {
 		char s_drive[_MAX_DRIVE], s_dir[_MAX_DIR], s_fname[_MAX_FNAME];
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+		_splitpath_s(app_exe, s_drive, _MAX_DRIVE, s_dir, _MAX_DIR, s_fname, _MAX_FNAME, NULL, 0);
+#else
 		_splitpath(app_exe, s_drive, s_dir, s_fname, NULL);
+#endif
 		_putenv_s("GA_APPEXE", s_fname);
 		_putenv_s("GA_ROOT", ga_root);
 		_putenv_s("GA_CONFIG", config_path);
@@ -146,7 +145,7 @@ hook_and_launch(const char *ga_root, const char *config_path, const char *app_ex
 int
 main(int argc, char *argv[]) {
 	int ret;
-	char *ptr, buf[8192];
+	char *ptr;
 	char app_dir[1024];
 	char app_exe[1024];
 	char loader_exe[1024];
@@ -181,13 +180,22 @@ main(int argc, char *argv[]) {
 	}
 	// get loader's info
 	GetModuleFileName(NULL, loader_exe, sizeof(loader_exe));
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+	_splitpath_s(loader_exe, s_drive, _MAX_DRIVE, s_dir, _MAX_DIR, s_fname, _MAX_FNAME, NULL, 0);
+#else
 	_splitpath(loader_exe, s_drive, s_dir, s_fname, NULL);
+#endif
 	snprintf(loader_dir, sizeof(loader_dir), "%s%s", s_drive, s_dir);
 	fprintf(stderr, "Loader: %s (in %s)\n", loader_exe, loader_dir);
 
 	// get app's info
 	if(app_dir[0] == '\0') {
+
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+		_splitpath_s(app_exe, s_drive, _MAX_DRIVE, s_dir, _MAX_DIR, s_fname, _MAX_FNAME, NULL, 0);
+#else
 		_splitpath(app_exe, s_drive, s_dir, s_fname, NULL);
+#endif
 		snprintf(app_dir, sizeof(app_dir), "%s%s", s_drive, s_dir);
 		fprintf(stderr, "app: %s (in %s)\n", app_exe, app_dir);
 	}

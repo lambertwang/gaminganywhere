@@ -41,7 +41,6 @@ udpping_thread(void *param) {
 	char *ipaddr = (char *)param;
 	int counter = 0;
 	int recvlen;
-	unsigned char buf[BUFSIZE];
 	struct timeval begin, end;
 	double startTime[WINDOWNUM]; // Starting times, placed in the index of the counter
 	double respTime[WINDOWNUM]; // RTT values
@@ -53,7 +52,7 @@ udpping_thread(void *param) {
 		// Initialize winsock
 		if(WSAStartup(MAKEWORD(2,2),&wsa) != 0){
 			ga_error("Winsock failed to initialize\n");
-			exit(EXIT_FAILURE)
+			exit(EXIT_FAILURE);
 		}
 		// Create socket
 		if((sock = socket(AF_INET, SOCK_DGRAM, 0)) == SOCKET_ERROR){
@@ -90,10 +89,17 @@ udpping_thread(void *param) {
 	socklen_t addrlen = sizeof(servaddr);
 	//servaddr.sin_addr.s_addr = [IP address, pull from main]
 
+	char *buf;
+	buf = (char *) malloc(BUFSIZE);
+
 	while(1){
 		// Convert to string
 		char str[5];
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+		sprintf_s(str, 5, "%d", counter);
+#else
 		sprintf(str, "%d", counter);
+#endif
 
 		// Get start time and store for packet value
 		gettimeofday(&begin, NULL);
@@ -102,7 +108,7 @@ udpping_thread(void *param) {
 		// Send a packet
 		if(sendto(sock, str, strlen(str), 0, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0){
 			ga_error("Sendto failed\n");
-			return NULL;
+			break;
 		}
 
 		// Wait to receive a packet
@@ -128,6 +134,8 @@ udpping_thread(void *param) {
 			counter = 0;
 		}
 	}
+	free(buf);
+
 
 	#ifdef _WIN32
 		WSACleanup();

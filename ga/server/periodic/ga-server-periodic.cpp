@@ -16,16 +16,19 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <arpa/inet.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <sys/types.h>
 #include <stdlib.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
 #include <Ws2tcpip.h>
+#else
+#include <sys/socket.h>
+// #include <netinet/in.h>
+#include <arpa/inet.h>
+// #include <netdb.h>
 #endif
 
 #ifndef WIN32
@@ -157,16 +160,13 @@ udp_handler(void *) {
 	struct sockaddr_in clntaddr;
 	socklen_t addrlen = sizeof(clntaddr);
 	int recvlen;
-	unsigned char buf[PKTBUF];
 
 	// Initialize socket
 	#ifdef _WIN32
-		WSADATA wsa;
-		SOCKET sock;
 		// Initialize winsock
 		if(WSAStartup(MAKEWORD(2,2),&wsa) != 0){
 			ga_error("Winsock failed to initialize\n");
-			exit(EXIT_FAILURE)
+			exit(EXIT_FAILURE);
 		}
 		// Create socket
 		if((sock = socket(AF_INET, SOCK_DGRAM, 0)) == SOCKET_ERROR){
@@ -202,6 +202,9 @@ udp_handler(void *) {
 	#endif
 
 	// Listen for packets; if received, parrot them back
+	char *buf;
+	buf = (char *) malloc(PKTBUF);
+
 	while(1){
 		// Reset buffer
 		//memset(buf, '\0', PKTBUF);
@@ -213,6 +216,7 @@ udp_handler(void *) {
 			sendto(sock, buf, recvlen, 0, (struct sockaddr *)&clntaddr, sizeof(clntaddr));
 		}
 	}
+	free(buf);
 
 	#ifdef _WIN32
 		WSACleanup();
@@ -226,7 +230,7 @@ udp_handler(void *) {
 		status = shutdown(sock, SHUT_RDWR);
 		if(status == 0){ status = close(sock); }
 	#endif
-    
+
 	return NULL;
 }
 
@@ -391,11 +395,7 @@ main(int argc, char *argv[]) {
 	// enable handler to monitored network status
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_NETREPORT, handle_netreport);
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_RECONFIG, handle_reconfig);
-<<<<<<< HEAD
-=======
-	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_BBRREPORT, handle_bbrreport);
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_UDPPING, handle_udpping);
->>>>>>> udpPinger
 	//
 #ifdef TEST_RECONFIGURE
 	pthread_t t;

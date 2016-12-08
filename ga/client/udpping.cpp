@@ -38,7 +38,7 @@
 
 void *
 udpping_thread(void *param) {
-	char *ipaddr = (char *)param;
+	in_addr ipaddr = *((in_addr *) param);
 	int counter = 0;
 	int recvlen;
 	struct timeval begin, end;
@@ -87,7 +87,7 @@ udpping_thread(void *param) {
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_port = htons(PORT);
 	socklen_t addrlen = sizeof(servaddr);
-	servaddr.sin_addr.s_addr = htonl(ipaddr);
+	servaddr.sin_addr = ipaddr;
 
 	char *buf;
 	buf = (char *) malloc(BUFSIZE);
@@ -120,6 +120,7 @@ udpping_thread(void *param) {
 			gettimeofday(&end, NULL);
 			double endTime = ((end.tv_sec * 1000.0) + (end.tv_usec / 1000.0));
 			respTime[counter] = endTime - startTime[counter];
+			ga_error("RTT: %5lf ms", respTime[counter]);
 
 			#ifdef _WIN32
 				Sleep(1);
@@ -149,6 +150,6 @@ udpping_thread(void *param) {
 		status = shutdown(sock, SHUT_RDWR);
 		if(status == 0){ status = close(sock); }
 	#endif
-    
+
 	return NULL;
 }

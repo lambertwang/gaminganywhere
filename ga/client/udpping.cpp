@@ -87,7 +87,7 @@ udpping_thread(void *param) {
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_port = htons(PORT);
 	socklen_t addrlen = sizeof(servaddr);
-	//servaddr.sin_addr.s_addr = [IP address, pull from main]
+	servaddr.sin_addr.s_addr = htonl(ipaddr);
 
 	char *buf;
 	buf = (char *) malloc(BUFSIZE);

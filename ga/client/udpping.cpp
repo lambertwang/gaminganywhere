@@ -34,15 +34,17 @@
 
 #define PORT 8556
 #define BUFSIZE 512
+#define WINDOWNUM 5000
 
 void *
 udpping_thread(void *param) {
+	char *ipaddr = (char *)param;
 	int counter = 0;
 	int recvlen;
 	unsigned char buf[BUFSIZE];
 	struct timeval begin, end;
-	double startTime[100]; // Starting times, placed in the index of the counter
-	double respTime[100]; // RTT values
+	double startTime[WINDOWNUM]; // Starting times, placed in the index of the counter
+	double respTime[WINDOWNUM]; // RTT values
 
 	// Initialize socket
 	#ifdef _WIN32
@@ -112,11 +114,17 @@ udpping_thread(void *param) {
 			gettimeofday(&end, NULL);
 			double endTime = ((end.tv_sec * 1000.0) + (end.tv_usec / 1000.0));
 			respTime[counter] = endTime - startTime[counter];
+
+			#ifdef _WIN32
+				Sleep(1);
+			#else
+				sleep(1);
+			#endif
 		}
 
 		// Increment counter: only the previous 100 entries are tracked.
 		counter++;
-		if(counter >= 100){
+		if(counter >= WINDOWNUM){
 			counter = 0;
 		}
 	}

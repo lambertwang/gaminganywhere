@@ -826,7 +826,8 @@ main(int argc, char *argv[]) {
 			rtsperror("Cannot create bitrate adaptation thread.\n");
 			return -1;
 		}
-		if(pthread_create(&udppingthread, NULL, udpping_thread, NULL) != 0){
+		char *ipaddr = inet_ntoa(rtspconf->sin.sin_addr);
+		if(pthread_create(&udppingthread, NULL, udpping_thread, (void *) ipaddr) != 0){
 			rtsperror("Cannot create UDP ping thread.\n");
 			return -1;
 		}

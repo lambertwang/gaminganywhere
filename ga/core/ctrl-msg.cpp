@@ -33,7 +33,9 @@ static ctrlsys_handler_t ctrlsys_handler_list[] = {
 	NULL,	/* 0 = CTRL_MSGSYS_SUBTYPE_NULL */
 	NULL,	/* 1 = CTRL_MSGSYS_SUBTYPE_SHUTDOWN */
 	NULL,	/* 2 = CTRL_MSGSYS_SUBTYPE_NETREPORT */
-	NULL	/* 3 = CTRL_MSGSYS_SUBTYPE_RECONFIG */
+	NULL,	/* 3 = CTRL_MSGSYS_SUBTYPE_RECONFIG */
+	NULL,	/* 4 = CTRL_MSGSYS_SUBTYPE_BBRREPORT */
+	NULL	/* 5 = CTRL_MSGSYS_SUBTYPE_UDPPING */
 };
 
 ctrlsys_handler_t
@@ -61,6 +63,7 @@ ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 	ctrlmsg_system_netreport_t *netreport;
 	ctrlmsg_system_reconfig_t *reconf;
 	ctrlmsg_system_bbrreport_t *bbrreport;
+	ctrlmsg_system_udpping_t *udpping;
 	msg->msgsize = ntohs(msg->msgsize);
 	switch(msg->subtype) {
 	/* no conversion needed, and no size checking */
@@ -97,6 +100,11 @@ ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 		bbrreport->bytecount = htonl(bbrreport->bytecount);
 		bbrreport->rcvrate = htonl(bbrreport->rcvrate);
 		break;
+	case CTRL_MSGSYS_SUBTYPE_UDPPING:
+		if(msg->msgsize != sizeof(ctrlmsg_system_udpping_t))
+			return -1;
+		udpping = (ctrlmsg_system_udpping_t*) msg;
+		udpping->handleping = htonl(udpping->handleping);
 	default:
 		return -1;
 	}
@@ -219,5 +227,25 @@ ctrlsys_bbrreport(ctrlmsg_t *msg,
 	msgn->duration = htonl(duration);
 	msgn->bytecount = htonl(bytecount);
 	msgn->rcvrate = htonl(rcvrate);
+	return msg;
+}
+
+/**
+ * Send a signal to the server to start the UDP ping handler
+ *
+ * @param msg [in]	The structure to store the built message.
+ *			The size of the structure must be at least \a sizeof(ctrlmsg_system_udpping_t)
+ * @param handleping [in] The value to indicate bitrate-adaptation has been handled.
+ *
+ */
+ ctrlmsg_t *
+ ctrlsys_udpping(ctrlmsg_t *msg,
+ 		unsigned int handleping) {
+	ctrlmsg_system_udpping_t *msgn = (ctrlmsg_system_udpping_t*) msg;
+	bzero(msg, sizeof(ctrlmsg_system_udpping_t));
+	msgn->msgsize = htons(sizeof(ctrlmsg_system_udpping_t));
+	msgn->msgtype = CTRL_MSGTYPE_SYSTEM;
+	msgn->subtype = CTRL_MSGSYS_SUBTYPE_UDPPING;
+	msgn->handleping = htonl(handleping);
 	return msg;
 }

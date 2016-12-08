@@ -54,6 +54,7 @@ static char *filterpipe0 = "filter-0";
 static char *filter_param[] = { imagepipefmt, filterpipefmt };
 static char *video_encoder_param = filterpipefmt;
 static void *audio_encoder_param = NULL;
+static int pingHandleThreadStarted = 0;
 
 static struct gaRect *prect = NULL;
 static struct gaRect rect;
@@ -475,6 +476,22 @@ handle_bbrreport(ctrlmsg_system_t *msg) {
 	return;
 }
 
+void
+handle_udpping(ctrlmsg_system_t *msg){
+	pthread_t udppingthread;
+
+	// Only start the handler once, in case multiple ctrlmsg signals are sent.
+	if(pingHandleThreadStarted == 0){
+		pingHandleThreadStarted = 1;
+		if(pthread_create(&udppingthread, NULL, udp_handler, NULL) != 0){
+			ga_error("Cannot create UDP Handler thread.\n");
+			return;
+		}
+	}
+
+	return;
+}
+
 int
 main(int argc, char *argv[]) {
 #ifdef WIN32
@@ -515,6 +532,7 @@ main(int argc, char *argv[]) {
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_NETREPORT, handle_netreport);
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_RECONFIG, handle_reconfig);
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_BBRREPORT, handle_bbrreport);
+	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_UDPPING, handle_udpping);
 	//
 #ifdef TEST_RECONFIGURE
 	pthread_t t;

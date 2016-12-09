@@ -142,7 +142,7 @@ rttserver_thread(void *param) {
 	id_buf = (char *) malloc(9);
 	id_buf[8] = 0;
 
-	boolean first_ping_sent = false;
+	bool first_ping_sent = false;
 
 	while(1){
 		// Buffer ping requests (max 50 per sec for now)

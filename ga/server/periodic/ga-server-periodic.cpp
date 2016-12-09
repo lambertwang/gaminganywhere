@@ -57,7 +57,7 @@ static char *filterpipe0 = "filter-0";
 static char *filter_param[] = { imagepipefmt, filterpipefmt };
 static char *video_encoder_param = filterpipefmt;
 static void *audio_encoder_param = NULL;
-static bool pingHandleThreadStarted = false;
+static bool rttThreadStarted = false;
 
 static struct gaRect *prect = NULL;
 static struct gaRect rect;
@@ -157,24 +157,24 @@ rtt_handler(void *) {
 	int sock;
 #endif
 	struct sockaddr_in myaddr;
-	struct sockaddr_in clntaddr;
-	socklen_t addrlen = sizeof(clntaddr);
+	struct sockaddr_in client_addr;
+	socklen_t addrlen = sizeof(client_addr);
 	int recvlen;
 
 	// Initialize socket
 #ifdef _WIN32
 	// Initialize winsock
 	if(WSAStartup(MAKEWORD(2,2),&wsa) != 0){
-		ga_error("Winsock failed to initialize\n");
+		ga_error("rtt_handler: Winsock failed to initialize\n");
 		exit(EXIT_FAILURE);
 	}
 	// Create socket
-	if((sock = socket(AF_INET, SOCK_DGRAM, 0)) == SOCKET_ERROR){
+	if((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == SOCKET_ERROR){
 #else
 	// Create socket
-	if((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0){
+	if((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0){
 #endif
-		ga_error("Failed to create socket\n");
+		ga_error("rtt_handler: Failed to create socket\n");
 		return NULL;
 	}
 
@@ -182,7 +182,7 @@ rtt_handler(void *) {
 	memset((char *)&myaddr, 0, sizeof(myaddr));
 	myaddr.sin_family = AF_INET;
 	myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	myaddr.sin_port = htons(PKTPORT + 1);
+	myaddr.sin_port = htons(PKTPORT);
 
 	// Bind socket
 // #ifdef _WIN32
@@ -190,18 +190,19 @@ rtt_handler(void *) {
 // #else
 // 	if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
 // #endif
-// 		ga_error("Failed to bind\n");
+//		ga_error("rtt_handler: Failed to bind\n");
 // 		return NULL;
 // 	}
 
 	// Bind socket
-	// ga_error("rttserver: Binding to socket\n");
-	// if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
-	// 	char errmsg[ERR_MSG_LEN]; 
-	// 	strerror_s(errmsg, ERR_MSG_LEN, errno);
-	// 	ga_error("rttserver: Failed to bind - %s\n", errmsg);
-	// 	return NULL;
-	// }
+	ga_error("rttserver: Binding to socket\n");
+	if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
+		// char errmsg[ERR_MSG_LEN]; 
+		// strerror_s(errmsg, ERR_MSG_LEN, errno);
+		// ga_error("rttserver: Failed to bind - %s\n", errmsg);
+		ga_error("rttserver: Failed to bind.\n");
+		return NULL;
+	}
 
 	// Listen for packets; if received, parrot them back
 	char *buf;
@@ -211,12 +212,13 @@ rtt_handler(void *) {
 		// Reset buffer
 		//memset(buf, '\0', PKTBUF);
 
-		recvlen = recvfrom(sock, buf, PKTBUF, 0, (struct sockaddr *)&clntaddr, &addrlen);
-		ga_error("rtt_handler: Received ping! Sending response\n");
+		recvlen = recvfrom(sock, buf, PKTBUF, 0, (struct sockaddr *)&client_addr, &addrlen);
+		ga_error("rtt_handler: Received ping. %d bytes\n", recvlen);
 		if(recvlen > 0){
 			buf[recvlen] = 0;
 			// Send back
-			sendto(sock, buf, recvlen, 0, (struct sockaddr *)&clntaddr, sizeof(clntaddr));
+			ga_error("rtt_handler: Sending response.\n");
+			sendto(sock, buf, recvlen, 0, (struct sockaddr *)&client_addr, addrlen);
 		}
 	}
 	free(buf);
@@ -349,8 +351,9 @@ handle_rttserver(ctrlmsg_system_t *msg){
 	pthread_t rttserverthread;
 
 	// Only start the handler once, in case multiple ctrlmsg signals are sent.
-	if(!pingHandleThreadStarted){
-		pingHandleThreadStarted = true;
+	if(!rttThreadStarted){
+		rttThreadStarted = true;
+		ga_error("handle_rttserver: Initializing RTT response thread.\n");
 		if(pthread_create(&rttserverthread, NULL, rtt_handler, NULL) != 0){
 			ga_error("Cannot create UDP Handler thread.\n");
 			return;

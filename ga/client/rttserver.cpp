@@ -37,7 +37,7 @@
 #define BUFSIZE 512
 #define RTT_STORE_SIZE 4096
 
-#define PING_DELAY 200000 // Value in microseconds
+#define PING_DELAY 100000 // Value in microseconds
 #define RTPROP_WINDOW_SIZE 20 // Value in seconds
 
 static pthread_mutex_t rtt_mutex;
@@ -56,40 +56,48 @@ int rttserver_init(in_addr ipaddr, void *p_sock, struct sockaddr_in *servaddr) {
 		exit(EXIT_FAILURE);
 	}
 	// Create socket
-	if((*sock = socket(AF_INET, SOCK_DGRAM, 0)) == SOCKET_ERROR){
+	if((*sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == SOCKET_ERROR){
 #else
 	int *sock = ((int *) p_sock);
 	// Create socket
-	if((*sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0){
+	if((*sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0){
 #endif
 		ga_error("rttserver: Failed to create socket\n");
 		return -1;
 	}
 
 	// Set address structure
-	struct sockaddr_in clientaddr;
-	memset((char *)&clientaddr, 0, sizeof(clientaddr));
-	clientaddr.sin_family = AF_INET;
-	clientaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	clientaddr.sin_port = htons(PORT);
+	// struct sockaddr_in clientaddr;
+	// memset((char *)&clientaddr, 0, sizeof(clientaddr));
+	// clientaddr.sin_family = AF_INET;
+	// // clientaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	// // clientaddr.sin_port = htons(PORT);
+	// clientaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	// clientaddr.sin_port = htons(9876);
 
 	// Bind socket
-	ga_error("rttserver: Binding to socket\n");
-	if(bind(*sock, (struct sockaddr *)&clientaddr, sizeof(clientaddr)) < 0){
-		ga_error("rttserver: Failed to bind\n");
-		return -1;
-	}
+	// ga_error("rttserver: Binding to socket\n");
+	// if(bind(*sock, (struct sockaddr *)&clientaddr, sizeof(clientaddr)) < 0){
+	// 	ga_error("rttserver: Failed to bind\n");
+	// 	return -1;
+	// }
 
 #ifdef _WIN32
 	// Set blocking mode of socket
-	unsigned long nMode = 1; // 1: NON-BLOCKING
+	unsigned long nMode = 1; // 1: NON-BLOCKIN
 	ga_error("rttserver: Setting io mode of socket to non-blocking\n");
 	if (ioctlsocket(*sock, FIONBIO, &nMode) == SOCKET_ERROR) {
-		ga_error("rttserver: Failed to set io mode of socket\n");
-		closesocket(*sock);
+		int status = shutdown(sock, SD_BOTH);
+		if(status == 0){ status = closesocket(sock); }
 		WSACleanup();
+		ga_error("rttserver: Failed to set io mode of socket\n");
 		return -1;
 	}
+#else
+	struct timeval read_timeout;
+	read_timeout.tv_sec = 0;
+	read_timeout.tv_usec = 100;
+	setsockopt(*sock, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
 #endif
 
 	// Set server information
@@ -181,7 +189,8 @@ rttserver_thread(void *param) {
 		}
 
 		// Wait to receive a packet
-		recvlen = recvfrom(sock, buf, BUFSIZE, 0, (struct sockaddr *)&servaddr, &addrlen);
+		recvlen = recvfrom(sock, buf, BUFSIZE, 0, NULL, NULL);
+		recvlen = 0;
 
 		if (recvlen > 0) {
 			// ga_error("rttserver: Received %d bytes\n", recvlen);
@@ -235,7 +244,7 @@ unsigned int getRtprop() {
 	int rtprop_window_size = RTPROP_WINDOW_SIZE * 1000000 / PING_DELAY;
 	
 	pthread_mutex_lock(&rtt_mutex);
-	for (int i = ping_id_iterator; 
+	for (unsigned int i = ping_id_iterator; 
 		i != (ping_id_iterator + RTT_STORE_SIZE - rtprop_window_size) % RTT_STORE_SIZE; 
 		i = (i + RTT_STORE_SIZE - 1) % RTT_STORE_SIZE) {
 		if (rtt_store[i] != 0 && rtt_store[i] < ret) {
@@ -252,7 +261,7 @@ unsigned int getMaxRecent(unsigned int timeframe) {
 	int rtt_window_size = timeframe / PING_DELAY;
 	
 	pthread_mutex_lock(&rtt_mutex);
-	for (int i = ping_id_iterator; 
+	for (unsigned int i = ping_id_iterator; 
 		i != (ping_id_iterator + RTT_STORE_SIZE - rtt_window_size) % RTT_STORE_SIZE; 
 		i = (i + RTT_STORE_SIZE - 1) % RTT_STORE_SIZE) {
 		if (rtt_store[i] > ret) {

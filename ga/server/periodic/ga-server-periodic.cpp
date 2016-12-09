@@ -149,37 +149,34 @@ run_modules() {
 }
 
 static void *
-udp_handler(void *) {
-	#ifdef _WIN32
-		SOCKET sock;
-		WSADATA wsa;
-	#else
-		int sock;
-	#endif
+rtt_handler(void *) {
+#ifdef _WIN32
+	SOCKET sock;
+	WSADATA wsa;
+#else
+	int sock;
+#endif
 	struct sockaddr_in myaddr;
 	struct sockaddr_in clntaddr;
 	socklen_t addrlen = sizeof(clntaddr);
 	int recvlen;
 
 	// Initialize socket
-	#ifdef _WIN32
-		// Initialize winsock
-		if(WSAStartup(MAKEWORD(2,2),&wsa) != 0){
-			ga_error("Winsock failed to initialize\n");
-			exit(EXIT_FAILURE);
-		}
-		// Create socket
-		if((sock = socket(AF_INET, SOCK_DGRAM, 0)) == SOCKET_ERROR){
-			ga_error("Failed to create socket\n");
-			return NULL;
-		}
-	#else
-		// Create socket
-		if((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0){
-			ga_error("Failed to create socket\n");
-			return NULL;
-		}
-	#endif
+#ifdef _WIN32
+	// Initialize winsock
+	if(WSAStartup(MAKEWORD(2,2),&wsa) != 0){
+		ga_error("Winsock failed to initialize\n");
+		exit(EXIT_FAILURE);
+	}
+	// Create socket
+	if((sock = socket(AF_INET, SOCK_DGRAM, 0)) == SOCKET_ERROR){
+#else
+	// Create socket
+	if((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0){
+#endif
+		ga_error("Failed to create socket\n");
+		return NULL;
+	}
 
 	// Set address structure
 	memset((char *)&myaddr, 0, sizeof(myaddr));
@@ -187,19 +184,15 @@ udp_handler(void *) {
 	myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	myaddr.sin_port = htons(PKTPORT);
 
-	#ifdef _WIN32
-		// Bind socket
-		if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) == INVALID_SOCKET){
-			ga_error("Failed to bind\n");
-			return NULL;
-		}
-	#else
-		// Bind socket
-		if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
-			ga_error("Failed to bind\n");
-			return NULL;
-		}
-	#endif
+	// Bind socket
+#ifdef _WIN32
+	if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) == INVALID_SOCKET){
+#else
+	if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
+#endif
+		ga_error("Failed to bind\n");
+		return NULL;
+	}
 
 	// Listen for packets; if received, parrot them back
 	char *buf;
@@ -218,18 +211,19 @@ udp_handler(void *) {
 	}
 	free(buf);
 
-	#ifdef _WIN32
-		WSACleanup();
-	#endif
+#ifdef _WIN32
+	WSACleanup();
+#endif
 
 	int status = 0;
-	#ifdef _WIN32
-		status = shutdown(sock, SD_BOTH);
-		if(status == 0){ status = closesocket(sock); }
-	#else
-		status = shutdown(sock, SHUT_RDWR);
-		if(status == 0){ status = close(sock); }
-	#endif
+
+#ifdef _WIN32
+	status = shutdown(sock, SD_BOTH);
+	if(status == 0){ status = closesocket(sock); }
+#else
+	status = shutdown(sock, SHUT_RDWR);
+	if(status == 0){ status = close(sock); }
+#endif
 
 	return NULL;
 }
@@ -341,13 +335,13 @@ handle_reconfig(ctrlmsg_system_t *msg){
 }
 
 void
-handle_udpping(ctrlmsg_system_t *msg){
-	pthread_t udppingthread;
+handle_rttserver(ctrlmsg_system_t *msg){
+	pthread_t rttserverthread;
 
 	// Only start the handler once, in case multiple ctrlmsg signals are sent.
 	if(pingHandleThreadStarted == 0){
 		pingHandleThreadStarted = 1;
-		if(pthread_create(&udppingthread, NULL, udp_handler, NULL) != 0){
+		if(pthread_create(&rttserverthread, NULL, rtt_handler, NULL) != 0){
 			ga_error("Cannot create UDP Handler thread.\n");
 			return;
 		}
@@ -395,7 +389,7 @@ main(int argc, char *argv[]) {
 	// enable handler to monitored network status
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_NETREPORT, handle_netreport);
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_RECONFIG, handle_reconfig);
-	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_UDPPING, handle_udpping);
+	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_RTTSERVER, handle_rttserver);
 	//
 #ifdef TEST_RECONFIGURE
 	pthread_t t;

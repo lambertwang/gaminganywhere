@@ -19,6 +19,14 @@
 #ifndef __BITRATEADAPTATION_H__
 #define __BITRATEADAPTATION_H__
 
+void bbr_update(
+    unsigned int ssrc, 
+    unsigned int seq, 
+    struct timeval rcvtv, 
+    unsigned int timestamp, 
+    unsigned int pktsize
+    );
+
 void * bitrateadaptation_thread(void *param);
 
 #endif

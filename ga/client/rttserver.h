@@ -16,9 +16,12 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef __UDPPING_H__
-#define __UDPPING_H__
+#ifndef __RTTSERVER_H__
+#define __RTTSERVER_H__
 
-void * udpping_thread(void *param);
+void * rttserver_thread(void *param);
+
+unsigned int getRtprop();
+unsigned int getMaxRecent(unsigned int timeframe);
 
 #endif

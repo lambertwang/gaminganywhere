@@ -38,6 +38,7 @@ unsigned increaseReceiveBufferTo(UsageEnvironment& env,
 #include "controller.h"
 #include "minih264.h"
 #include "qosreport.h"
+#include "bitrateadaptation.h"
 #ifdef ANDROID
 #include "android-decoders.h"
 #endif
@@ -624,104 +625,6 @@ bandwidth_estimator_update(unsigned int ssrc, unsigned short seq, struct timeval
 	return;
 }
 
-typedef struct bbr_btlbw_record_s {
-	struct timeval rcvtime;
-	unsigned int pktsize;
-	unsigned int timeelapsed; // Time in usec
-	unsigned int deliveryrate; // In bytes per sec
-}	bbr_record_t;
-
-// Record windowed maximum of delivery rate
-#define BBR_BTLBW_MAX 256
-#define BBR_BTLBW_WINDOW_SIZE_US (1000 * 1000)
-#define BBR_BTLBW_REPORT_PERIOD_US (500 * 1000)
-static struct bbr_btlbw_record_s bbr_btlbw[BBR_BTLBW_MAX];
-static unsigned int bbr_btlbw_start = 0;
-static unsigned int bbr_btlbw_head = 0;
-static unsigned int last_pkt_timestamp = 0;
-static struct timeval last_report_sent;
-
-void
-bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned int timestamp, unsigned int pktsize) {
-	// assume ssrc is always video source.
-
-	// Same frame?
-	if(timestamp == last_pkt_timestamp) {
-		int prev_index = (bbr_btlbw_head + BBR_BTLBW_MAX - 1) % BBR_BTLBW_MAX;
-		bbr_btlbw[prev_index].pktsize += pktsize;
-		if (bbr_btlbw[prev_index].timeelapsed == 0) {
-			bbr_btlbw[prev_index].deliveryrate = 0;
-		} else {
-			bbr_btlbw[prev_index].deliveryrate = 1000000 * pktsize / bbr_btlbw[prev_index].timeelapsed;
-		}
-		// ga_error("Updated Frame Size: %u Elapsed: %u Rate: %u\n", 
-			// pktsize, 
-			// bbr_btlbw[bbr_btlbw_head].timeelapsed, 
-			// bbr_btlbw[bbr_btlbw_head].deliveryrate);
-		return;
-	}
-
-	last_pkt_timestamp = timestamp;
-
-	bbr_btlbw[bbr_btlbw_head].rcvtime = rcvtv;
-	bbr_btlbw[bbr_btlbw_head].pktsize = pktsize;
-	if (bbr_btlbw_start != bbr_btlbw_head) {
-		int prev_index = (bbr_btlbw_head + BBR_BTLBW_MAX - 1) % BBR_BTLBW_MAX;
-		bbr_btlbw[bbr_btlbw_head].timeelapsed = 
-			1000000 * (rcvtv.tv_sec - bbr_btlbw[prev_index].rcvtime.tv_sec) + 
-			rcvtv.tv_usec - bbr_btlbw[prev_index].rcvtime.tv_usec;
-		if (bbr_btlbw[bbr_btlbw_head].timeelapsed == 0) {
-			bbr_btlbw[bbr_btlbw_head].deliveryrate = 0;
-		} else {
-			bbr_btlbw[bbr_btlbw_head].deliveryrate = 1000000 * pktsize / bbr_btlbw[bbr_btlbw_head].timeelapsed;
-		}
-		// ga_error("New Frame Size: %u Elapsed: %u Rate: %u\n", 
-		// 	pktsize, 
-		// 	bbr_btlbw[bbr_btlbw_head].timeelapsed, 
-		// 	bbr_btlbw[bbr_btlbw_head].deliveryrate);
-	} else {
-		// Should only occur on first packet received
-		bbr_btlbw[bbr_btlbw_head].timeelapsed = 0;
-		bbr_btlbw[bbr_btlbw_head].deliveryrate = 0;
-		last_report_sent = rcvtv;
-	}
-
-	bbr_btlbw_head = (bbr_btlbw_head + 1) % BBR_BTLBW_MAX;
-	if (bbr_btlbw_head == bbr_btlbw_start) {
-		bbr_btlbw_start = (bbr_btlbw_start + 1) % BBR_BTLBW_MAX;
-	}
-
-
-	if (1000000 * (rcvtv.tv_sec - last_report_sent.tv_sec) + 
-		rcvtv.tv_usec - last_report_sent.tv_usec > BBR_BTLBW_REPORT_PERIOD_US) {
-		last_report_sent = rcvtv;
-		unsigned int max_deliveryrate = 0;
-
-		while (1000000 * (rcvtv.tv_sec - bbr_btlbw[bbr_btlbw_start].rcvtime.tv_sec) + 
-			rcvtv.tv_usec - bbr_btlbw[bbr_btlbw_start].rcvtime.tv_usec > BBR_BTLBW_WINDOW_SIZE_US) {
-			bbr_btlbw_start = (bbr_btlbw_start + 1) % BBR_BTLBW_MAX;
-		}
-
-		unsigned int seek = bbr_btlbw_start;
-		int i = 0;
-		while (seek != bbr_btlbw_head) {
-			if (bbr_btlbw[seek].deliveryrate > max_deliveryrate) {
-				max_deliveryrate = bbr_btlbw[seek].deliveryrate;
-			}
-			seek = (seek + 1) % BBR_BTLBW_MAX;
-			i++;
-		}
-		// ga_error("Window size: %d\n", i);
-		
-		ctrlmsg_t m;
-		ctrlsys_bbrreport(&m,
-			0,
-			0, 0, 
-			max_deliveryrate);
-		ctrl_client_sendmsg(&m, sizeof(ctrlmsg_system_bbrreport_t));
-	}
-}
-
 ////
 
 #ifdef WIN32
@@ -769,7 +672,7 @@ rtp_packet_handler(void *clientData, unsigned char *packet, unsigned &packetSize
 	}
 	//
 	bandwidth_estimator_update(ssrc, seqnum, tv, timestamp, packetSize);
-	// bbr_update(ssrc, seqnum, tv, timestamp, packetSize);
+	bbr_update(ssrc, seqnum, tv, timestamp, packetSize);
 	pktloss_monitor_update(ssrc, seqnum);
 	//
 	return;

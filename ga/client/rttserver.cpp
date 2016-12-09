@@ -37,7 +37,7 @@
 #define BUFSIZE 512
 #define RTT_STORE_SIZE 4096
 
-#define PING_DELAY 20000 // Value in microseconds
+#define PING_DELAY 200000 // Value in microseconds
 #define RTPROP_WINDOW_SIZE 20 // Value in seconds
 
 static pthread_mutex_t rtt_mutex;
@@ -127,6 +127,10 @@ rttserver_thread(void *param) {
 		return NULL;
 	}
 
+	ctrlmsg_t msg;
+	ctrlsys_rttserver(&msg);
+	ctrl_client_sendmsg(&msg, sizeof(ctrlmsg_system_rttserver_t));
+
 	socklen_t addrlen = sizeof(servaddr);
 
 	ping_id_iterator = 0;
@@ -160,7 +164,7 @@ rttserver_thread(void *param) {
 #else
 			sprintf(id_buf, "%8d", ping_id_iterator);
 #endif
-			// ga_error("Sending ping id %d\n", ping_id_iterator);
+			ga_error("Sending ping id %d\n", ping_id_iterator);
 
 			// Get start time
 			gettimeofday(&startTime[ping_id_iterator], NULL);

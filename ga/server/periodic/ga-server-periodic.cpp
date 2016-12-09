@@ -57,7 +57,7 @@ static char *filterpipe0 = "filter-0";
 static char *filter_param[] = { imagepipefmt, filterpipefmt };
 static char *video_encoder_param = filterpipefmt;
 static void *audio_encoder_param = NULL;
-static int pingHandleThreadStarted = 0;
+static bool pingHandleThreadStarted = false;
 
 static struct gaRect *prect = NULL;
 static struct gaRect rect;
@@ -182,17 +182,26 @@ rtt_handler(void *) {
 	memset((char *)&myaddr, 0, sizeof(myaddr));
 	myaddr.sin_family = AF_INET;
 	myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	myaddr.sin_port = htons(PKTPORT);
+	myaddr.sin_port = htons(PKTPORT + 1);
 
 	// Bind socket
-#ifdef _WIN32
-	if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) == INVALID_SOCKET){
-#else
-	if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
-#endif
-		ga_error("Failed to bind\n");
-		return NULL;
-	}
+// #ifdef _WIN32
+// 	if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) == INVALID_SOCKET){
+// #else
+// 	if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
+// #endif
+// 		ga_error("Failed to bind\n");
+// 		return NULL;
+// 	}
+
+	// Bind socket
+	// ga_error("rttserver: Binding to socket\n");
+	// if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
+	// 	char errmsg[ERR_MSG_LEN]; 
+	// 	strerror_s(errmsg, ERR_MSG_LEN, errno);
+	// 	ga_error("rttserver: Failed to bind - %s\n", errmsg);
+	// 	return NULL;
+	// }
 
 	// Listen for packets; if received, parrot them back
 	char *buf;
@@ -203,6 +212,7 @@ rtt_handler(void *) {
 		//memset(buf, '\0', PKTBUF);
 
 		recvlen = recvfrom(sock, buf, PKTBUF, 0, (struct sockaddr *)&clntaddr, &addrlen);
+		ga_error("rtt_handler: Received ping! Sending response\n");
 		if(recvlen > 0){
 			buf[recvlen] = 0;
 			// Send back
@@ -339,8 +349,8 @@ handle_rttserver(ctrlmsg_system_t *msg){
 	pthread_t rttserverthread;
 
 	// Only start the handler once, in case multiple ctrlmsg signals are sent.
-	if(pingHandleThreadStarted == 0){
-		pingHandleThreadStarted = 1;
+	if(!pingHandleThreadStarted){
+		pingHandleThreadStarted = true;
 		if(pthread_create(&rttserverthread, NULL, rtt_handler, NULL) != 0){
 			ga_error("Cannot create UDP Handler thread.\n");
 			return;

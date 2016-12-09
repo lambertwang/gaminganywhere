@@ -104,7 +104,7 @@ ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 		if(msg->msgsize != sizeof(ctrlmsg_system_rttserver_t))
 			return -1;
 		rttserver = (ctrlmsg_system_rttserver_t*) msg;
-		rttserver->handleping = htonl(rttserver->handleping);
+		break;
 	default:
 		return -1;
 	}
@@ -235,17 +235,13 @@ ctrlsys_bbrreport(ctrlmsg_t *msg,
  *
  * @param msg [in]	The structure to store the built message.
  *			The size of the structure must be at least \a sizeof(ctrlmsg_system_rttserver_t)
- * @param handleping [in] The value to indicate bitrate-adaptation has been handled.
- *
  */
  ctrlmsg_t *
- ctrlsys_rttserver(ctrlmsg_t *msg,
- 		unsigned int handleping) {
+ ctrlsys_rttserver(ctrlmsg_t *msg) {
 	ctrlmsg_system_rttserver_t *msgn = (ctrlmsg_system_rttserver_t*) msg;
 	bzero(msg, sizeof(ctrlmsg_system_rttserver_t));
 	msgn->msgsize = htons(sizeof(ctrlmsg_system_rttserver_t));
 	msgn->msgtype = CTRL_MSGTYPE_SYSTEM;
 	msgn->subtype = CTRL_MSGSYS_SUBTYPE_RTTSERVER;
-	msgn->handleping = htonl(handleping);
 	return msg;
 }

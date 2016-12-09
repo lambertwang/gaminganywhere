@@ -153,7 +153,11 @@ float bbr_gain(bbr_state_t *state) {
 			gain = 2; // Attempt to double delivery rate
 			if (state->start_1 != 0) {
 				// Detect plateaus: If less than 25% growth in 3 rounds, leave startup state
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+				if (min(state->start_1, state->start_0) * 5 / 4 > latest_throughput) {
+#else
 				if (std::min(state->start_1, state->start_0) * 5 / 4 > latest_throughput) {
+#endif
 					ga_error("BBR: Entering drain state\n");
 					state->stage = 1;
 				}
@@ -220,7 +224,11 @@ bitrateadaptation_thread(void *param) {
 			if (fabs(gain - 1.0) > 0.1) {
 				// ga_error("Gain factor: %f\n", gain);
 				state.bitrate *= gain;
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+				state.bitrate = min(max(BBR_BITRATE_MINIMUM, state.bitrate), BBR_BITRATE_MAXIMUM);
+#else
 				state.bitrate = std::min(std::max(BBR_BITRATE_MINIMUM, state.bitrate), BBR_BITRATE_MAXIMUM);
+#endif
 				
 				// ga_error("Sending reconfiguration message\n");
 				ctrlmsg_t m_reconf;

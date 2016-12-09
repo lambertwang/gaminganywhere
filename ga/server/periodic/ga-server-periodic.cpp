@@ -227,7 +227,7 @@ rtt_handler(void *) {
 			// sprintf(buf, "%8d", ping_id_queue[i]);
 			// buf[9] = 0;
 			// sendto(sock, buf, 9, 0, (struct sockaddr *) &(conf->sin), sizeof(&(conf->sin)));
-			sendto(sock, (void *) &ping_id_queue[i], sizeof(bbr_rtt_t), 0, (struct sockaddr *) &(toaddr), sizeof(toaddr));
+			sendto(sock, (char *) &ping_id_queue[i], sizeof(bbr_rtt_t), 0, (struct sockaddr *) &(toaddr), sizeof(toaddr));
 		}
 		ping_queue_size = 0;
 		pthread_mutex_unlock(&ping_queue_mutex);

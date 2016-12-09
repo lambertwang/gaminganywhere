@@ -35,7 +35,8 @@ static ctrlsys_handler_t ctrlsys_handler_list[] = {
 	NULL,	/* 2 = CTRL_MSGSYS_SUBTYPE_NETREPORT */
 	NULL,	/* 3 = CTRL_MSGSYS_SUBTYPE_RECONFIG */
 	NULL,	/* 4 = CTRL_MSGSYS_SUBTYPE_BBRREPORT */
-	NULL	/* 5 = CTRL_MSGSYS_SUBTYPE_RTTSERVER */
+	NULL,	/* 5 = CTRL_MSGSYS_SUBTYPE_RTTSERVER */
+	NULL	/* 6 = CTRL_MSGSYS_SUBTYPE_PING */
 };
 
 ctrlsys_handler_t
@@ -64,6 +65,7 @@ ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 	ctrlmsg_system_reconfig_t *reconf;
 	ctrlmsg_system_bbrreport_t *bbrreport;
 	ctrlmsg_system_rttserver_t *rttserver;
+	ctrlmsg_system_ping_t *ping;
 	msg->msgsize = ntohs(msg->msgsize);
 	switch(msg->subtype) {
 	/* no conversion needed, and no size checking */
@@ -104,6 +106,17 @@ ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 		if(msg->msgsize != sizeof(ctrlmsg_system_rttserver_t))
 			return -1;
 		rttserver = (ctrlmsg_system_rttserver_t*) msg;
+		// rttserver->sin_family = htons(sin_family);
+		// rttserver->sin_port = htons(sin_port);
+		// rttserver->s_addr = htonl(s_addr);
+		break;
+	case CTRL_MSGSYS_SUBTYPE_PING:
+		if(msg->msgsize != sizeof(ctrlmsg_system_ping_t))
+			return -1;
+		ping = (ctrlmsg_system_ping_t*) msg;
+		ping->ping_id = htonl(ping->ping_id);
+		ping->tv_sec = htonl(ping->tv_sec);
+		ping->tv_usec = htonl(ping->tv_usec);
 		break;
 	default:
 		return -1;
@@ -236,12 +249,35 @@ ctrlsys_bbrreport(ctrlmsg_t *msg,
  * @param msg [in]	The structure to store the built message.
  *			The size of the structure must be at least \a sizeof(ctrlmsg_system_rttserver_t)
  */
- ctrlmsg_t *
- ctrlsys_rttserver(ctrlmsg_t *msg) {
+ctrlmsg_t *
+//  ctrlsys_rttserver(ctrlmsg_t *msg, short sin_family, unsigned short sin_port, unsigned long s_addr) {
+ctrlsys_rttserver(ctrlmsg_t *msg) {
 	ctrlmsg_system_rttserver_t *msgn = (ctrlmsg_system_rttserver_t*) msg;
 	bzero(msg, sizeof(ctrlmsg_system_rttserver_t));
 	msgn->msgsize = htons(sizeof(ctrlmsg_system_rttserver_t));
 	msgn->msgtype = CTRL_MSGTYPE_SYSTEM;
 	msgn->subtype = CTRL_MSGSYS_SUBTYPE_RTTSERVER;
+	// msgn->sin_family = htons(sin_family);
+	// msgn->sin_port = htons(sin_port);
+	// msgn->s_addr = htonl(s_addr);
+	return msg;
+}
+
+/**
+ * TODO: Fill this out
+ *
+ * @param msg [in]	The structure to store the built message.
+ *			The size of the structure must be at least \a sizeof(ctrlmsg_system_ping_t)
+ */
+ctrlmsg_t *
+ctrlsys_ping(ctrlmsg_t *msg, unsigned int id, struct timeval time_record) {
+	ctrlmsg_system_ping_t *msgn = (ctrlmsg_system_ping_t*) msg;
+	bzero(msg, sizeof(ctrlmsg_system_ping_t));
+	msgn->msgsize = htons(sizeof(ctrlmsg_system_ping_t));
+	msgn->msgtype = CTRL_MSGTYPE_SYSTEM;
+	msgn->subtype = CTRL_MSGSYS_SUBTYPE_PING;
+	msgn->ping_id = htonl(id);
+	msgn->tv_sec = htonl(time_record.tv_sec);
+	msgn->tv_usec = htonl(time_record.tv_usec);
 	return msg;
 }

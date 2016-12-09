@@ -19,6 +19,11 @@
 #ifndef __BITRATEADAPTATION_H__
 #define __BITRATEADAPTATION_H__
 
+#define BBR_BITRATE_MINIMUM 50
+#define BBR_BITRATE_MAXIMUM 30000
+
+#define BBR_CYCLE_DELAY 500000 // Value in microseconds
+
 void bbr_update(
     unsigned int ssrc, 
     unsigned int seq, 

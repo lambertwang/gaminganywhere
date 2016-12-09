@@ -19,6 +19,14 @@
 #ifndef __RTTSERVER_H__
 #define __RTTSERVER_H__
 
+#define PING_DELAY 20000 // Value in microseconds
+#define RTT_STORE_SIZE 4096
+
+typedef struct bbr_rtt_s {
+	struct timeval time_record;
+	unsigned int rtt_id;
+}	bbr_rtt_t;
+
 void * rttserver_thread(void *param);
 
 unsigned int getRtprop();

@@ -35,7 +35,8 @@
 #define CTRL_MSGSYS_SUBTYPE_RECONFIG	3	/* system control message: reconfigure */
 #define CTRL_MSGSYS_SUBTYPE_BBRREPORT		4	/* system control message: BBR estimation report */
 #define CTRL_MSGSYS_SUBTYPE_RTTSERVER	5	/* system control message: UDP ping handler */
-#define	CTRL_MSGSYS_SUBTYPE_MAX		5	/* must equal to the last sub message type */
+#define CTRL_MSGSYS_SUBTYPE_PING	6	/* system control message: Ping */
+#define	CTRL_MSGSYS_SUBTYPE_MAX		6	/* must equal to the last sub message type */
 
 #ifdef WIN32
 #define	BEGIN_CTRL_MESSAGE_STRUCT	__pragma(pack(push, 1))	/* equal to #pragma pack(push, 1) */
@@ -129,9 +130,26 @@ struct ctrlmsg_system_rttserver_s {
 	unsigned short msgsize;		/*< size of this message, including msgsize */
 	unsigned char msgtype;		/*< must be CTRL_MSGTYPE_SYSTEM */
 	unsigned char subtype;		/*< must be CTRL_MSGSYS_SUBTYPE_RTTSERVER */
+	// short sin_family;		 	/*< Client socket descriptor information */
+	// unsigned short sin_port;
+	// unsigned long s_addr;
 }
 END_CTRL_MESSAGE_STRUCT
 typedef struct ctrlmsg_system_rttserver_s ctrlmsg_system_rttserver_t;
+
+////////////////////////////////////////////////////////////////////////////
+
+BEGIN_CTRL_MESSAGE_STRUCT
+struct ctrlmsg_system_ping_s {
+	unsigned short msgsize;		/*< size of this message, including msgsize */
+	unsigned char msgtype;		/*< must be CTRL_MSGTYPE_SYSTEM */
+	unsigned char subtype;		/*< must be CTRL_MSGSYS_SUBTYPE_PING */
+	unsigned int ping_id;		/*< Id of the ping */
+	long tv_sec;				/*< timeval record */
+	long tv_usec;
+}
+END_CTRL_MESSAGE_STRUCT
+typedef struct ctrlmsg_system_ping_s ctrlmsg_system_ping_t;
 
 ////////////////////////////////////////////////////////////////////////////
 
@@ -144,6 +162,8 @@ EXPORT	ctrlsys_handler_t ctrlsys_set_handler(unsigned char subtype, ctrlsys_hand
 EXPORT ctrlmsg_t * ctrlsys_netreport(ctrlmsg_t *msg, unsigned int duration, unsigned int framecount, unsigned int pktcount, unsigned int pktloss, unsigned int bytecount, unsigned int capacity);
 EXPORT ctrlmsg_t * ctrlsys_reconfig(ctrlmsg_t *msg, int reconfId, int crf, int framerate, int bitrate, int width, int height);
 EXPORT ctrlmsg_t * ctrlsys_bbrreport(ctrlmsg_t *msg, unsigned int framecount, unsigned int duration, unsigned int bytecount, unsigned int rcvrate);
+// EXPORT ctrlmsg_t * ctrlsys_rttserver(ctrlmsg_t *msg, short sin_family, unsigned short sin_port, unsigned long s_addr);
 EXPORT ctrlmsg_t * ctrlsys_rttserver(ctrlmsg_t *msg);
+EXPORT ctrlmsg_t * ctrlsys_ping(ctrlmsg_t *msg, unsigned int id, struct timeval time_record);
 
 #endif	/* __CTRL_MSG_H__ */

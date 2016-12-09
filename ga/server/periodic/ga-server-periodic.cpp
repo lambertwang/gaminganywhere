@@ -41,6 +41,7 @@
 #include "rtspconf.h"
 #include "controller.h"
 #include "encoder-common.h"
+#include "../../client/rttserver.h"
 
 // #define	TEST_RECONFIGURE
 #define PKTBUF 512
@@ -148,6 +149,10 @@ run_modules() {
 	return 0;
 }
 
+static pthread_mutex_t ping_queue_mutex;
+static bbr_rtt_t ping_id_queue[RTT_STORE_SIZE];
+static unsigned int ping_queue_size = 0;
+
 static void *
 rtt_handler(void *) {
 #ifdef _WIN32
@@ -157,8 +162,8 @@ rtt_handler(void *) {
 	int sock;
 #endif
 	struct sockaddr_in myaddr;
-	struct sockaddr_in client_addr;
-	socklen_t addrlen = sizeof(client_addr);
+	// struct sockaddr_in client_addr;
+	// socklen_t addrlen = sizeof(client_addr);
 	int recvlen;
 
 	// Initialize socket
@@ -169,10 +174,10 @@ rtt_handler(void *) {
 		exit(EXIT_FAILURE);
 	}
 	// Create socket
-	if((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == SOCKET_ERROR){
+	if((sock = socket(AF_INET, SOCK_DGRAM, 0)) == SOCKET_ERROR){
 #else
 	// Create socket
-	if((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0){
+	if((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0){
 #endif
 		ga_error("rtt_handler: Failed to create socket\n");
 		return NULL;
@@ -181,28 +186,15 @@ rtt_handler(void *) {
 	// Set address structure
 	memset((char *)&myaddr, 0, sizeof(myaddr));
 	myaddr.sin_family = AF_INET;
-	myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	myaddr.sin_addr.s_addr = INADDR_ANY;
 	myaddr.sin_port = htons(PKTPORT);
 
 	// Bind socket
-// #ifdef _WIN32
-// 	if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) == INVALID_SOCKET){
-// #else
-// 	if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
-// #endif
-//		ga_error("rtt_handler: Failed to bind\n");
-// 		return NULL;
-// 	}
-
-	// Bind socket
-	ga_error("rttserver: Binding to socket\n");
-	if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
-		// char errmsg[ERR_MSG_LEN]; 
-		// strerror_s(errmsg, ERR_MSG_LEN, errno);
-		// ga_error("rttserver: Failed to bind - %s\n", errmsg);
-		ga_error("rttserver: Failed to bind.\n");
-		return NULL;
-	}
+	// ga_error("rttserver: Binding to socket\n");
+	// if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
+	// 	ga_error("rttserver: Failed to bind.\n");
+	// 	return NULL;
+	// }
 
 	// Listen for packets; if received, parrot them back
 	char *buf;
@@ -212,14 +204,33 @@ rtt_handler(void *) {
 		// Reset buffer
 		//memset(buf, '\0', PKTBUF);
 
-		recvlen = recvfrom(sock, buf, PKTBUF, 0, (struct sockaddr *)&client_addr, &addrlen);
-		ga_error("rtt_handler: Received ping. %d bytes\n", recvlen);
-		if(recvlen > 0){
-			buf[recvlen] = 0;
-			// Send back
-			ga_error("rtt_handler: Sending response.\n");
-			sendto(sock, buf, recvlen, 0, (struct sockaddr *)&client_addr, addrlen);
+		// recvlen = recvfrom(sock, buf, PKTBUF, 0, (struct sockaddr *)&client_addr, &addrlen);
+		// ga_error("rtt_handler: Received ping. %d bytes\n", recvlen);
+		// if(recvlen > 0){
+		// 	unsigned int rec_id = atoi(buf);
+		// 	buf[recvlen] = 0;
+		// 	// Send back
+		// 	ga_error("rtt_handler: Sending response id %d\n", rec_id);
+		// 	sendto(sock, buf, recvlen, 0, (struct sockaddr *)&client_addr, addrlen);
+		// }
+
+		struct sockaddr_in toaddr;
+		memset((char *)&toaddr, 0, sizeof(toaddr));
+		toaddr.sin_family = AF_INET;
+		toaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+		toaddr.sin_port = htons(PKTPORT);
+		
+		pthread_mutex_lock(&ping_queue_mutex);
+		struct RTSPConf *conf = rtspconf_global();
+		for (int i = 0; i < ping_queue_size; i++) {
+			// ga_error("rtt_handler: Sending response id %d\n", ping_id_queue[i]);
+			// sprintf(buf, "%8d", ping_id_queue[i]);
+			// buf[9] = 0;
+			// sendto(sock, buf, 9, 0, (struct sockaddr *) &(conf->sin), sizeof(&(conf->sin)));
+			sendto(sock, (void *) &ping_id_queue[i], sizeof(bbr_rtt_t), 0, (struct sockaddr *) &(toaddr), sizeof(toaddr));
 		}
+		ping_queue_size = 0;
+		pthread_mutex_unlock(&ping_queue_mutex);
 	}
 	free(buf);
 
@@ -353,12 +364,30 @@ handle_rttserver(ctrlmsg_system_t *msg){
 	// Only start the handler once, in case multiple ctrlmsg signals are sent.
 	if(!rttThreadStarted){
 		rttThreadStarted = true;
+		pthread_mutex_init(&ping_queue_mutex, NULL);
 		ga_error("handle_rttserver: Initializing RTT response thread.\n");
 		if(pthread_create(&rttserverthread, NULL, rtt_handler, NULL) != 0){
 			ga_error("Cannot create UDP Handler thread.\n");
 			return;
 		}
 	}
+
+	return;
+}
+
+void
+handle_ping(ctrlmsg_system_t *msg) {
+	if(!rttThreadStarted){
+		return;
+	}
+	ctrlmsg_system_ping_t *msgn = (ctrlmsg_system_ping_t*) msg;
+
+	pthread_mutex_lock(&ping_queue_mutex);
+	ping_id_queue[ping_queue_size].rtt_id = msgn->ping_id;
+	ping_id_queue[ping_queue_size].time_record.tv_sec = msgn->tv_sec;
+	ping_id_queue[ping_queue_size].time_record.tv_usec = msgn->tv_usec;
+	ping_queue_size = (ping_queue_size + 1) % RTT_STORE_SIZE;
+	pthread_mutex_unlock(&ping_queue_mutex);
 
 	return;
 }
@@ -403,6 +432,7 @@ main(int argc, char *argv[]) {
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_NETREPORT, handle_netreport);
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_RECONFIG, handle_reconfig);
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_RTTSERVER, handle_rttserver);
+	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_PING, handle_ping);
 	//
 #ifdef TEST_RECONFIGURE
 	pthread_t t;

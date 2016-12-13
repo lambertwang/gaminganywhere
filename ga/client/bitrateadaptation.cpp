@@ -33,20 +33,16 @@ typedef struct bbr_btlbw_record_s {
 	unsigned int deliveryrate; // In bytes per sec
 }	bbr_record_t;
 
-// Record windowed maximum of delivery rate
-#define BBR_BTLBW_MAX 256
-#define BBR_BTLBW_WINDOW_SIZE_US (1000 * 1000)
-#define BBR_BTLBW_REPORT_PERIOD_US (500 * 1000)
 struct bbr_btlbw_record_s bbr_btlbw[BBR_BTLBW_MAX];
-unsigned int bbr_btlbw_start = 0;
-unsigned int bbr_btlbw_head = 0;
-unsigned int last_pkt_timestamp = 0;
-struct timeval last_report_sent;
-unsigned int latest_throughput; // Not thread safe.
+static unsigned int latest_throughput; // Not thread safe.
 
 void
 bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned int timestamp, unsigned int pktsize) {
 	// assume ssrc is always video source.
+	unsigned int bbr_btlbw_start = 0;
+	unsigned int bbr_btlbw_head = 0;
+	unsigned int last_pkt_timestamp = 0;
+	struct timeval last_report_sent;
 
 	// Same frame?
 	if(timestamp == last_pkt_timestamp) {
@@ -57,10 +53,7 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 		} else {
 			bbr_btlbw[prev_index].deliveryrate = 1000000 * pktsize / bbr_btlbw[prev_index].timeelapsed;
 		}
-		// ga_error("Updated Frame Size: %u Elapsed: %u Rate: %u\n", 
-			// pktsize, 
-			// bbr_btlbw[bbr_btlbw_head].timeelapsed, 
-			// bbr_btlbw[bbr_btlbw_head].deliveryrate);
+
 		return;
 	}
 
@@ -78,10 +71,6 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 		} else {
 			bbr_btlbw[bbr_btlbw_head].deliveryrate = 1000000 * pktsize / bbr_btlbw[bbr_btlbw_head].timeelapsed;
 		}
-		// ga_error("New Frame Size: %u Elapsed: %u Rate: %u\n", 
-		// 	pktsize, 
-		// 	bbr_btlbw[bbr_btlbw_head].timeelapsed, 
-		// 	bbr_btlbw[bbr_btlbw_head].deliveryrate);
 	} else {
 		// Should only occur on first packet received
 		bbr_btlbw[bbr_btlbw_head].timeelapsed = 0;
@@ -110,46 +99,20 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 		latest_throughput = 0;
 		while (seek != bbr_btlbw_head) {
 			latest_throughput += bbr_btlbw[seek].pktsize;
-			// if (bbr_btlbw[seek].deliveryrate > max_deliveryrate) {
-			// 	max_deliveryrate = bbr_btlbw[seek].deliveryrate;
-			// }
 			seek = (seek + 1) % BBR_BTLBW_MAX;
 		}
 	}
 }
 
-/**
- * BBR State table
- *-1 : Waiting on RTT
- *		Leaves once RTT can be acquired
- * 0 : Startup
- *		Leaves once BtlBw is found
- *		When 3 consecutive startup steps do not result in a doubled delivery rate. 
- * 1 : Drain
- *		Leaves once Excess created by startup is drained
- * 2 : Probe / steady state
- */
-#define BBR_PROBE_INTERVAL_US (4 * 1000 * 1000) // 4 seconds
-
-typedef struct bbr_state_s {
-	int stage;
-	unsigned int start_0;
-	unsigned int start_1;
-	struct timeval prev_probe;
-	int rtprop; // Time delta values in microseconds
-	int latest_rtt;
-	int bitrate;
-} bbr_state_t;
-
 float bbr_gain(bbr_state_t *state) {
 	float gain = 1.0;
 	struct timeval now;
 	switch (state->stage) {
-		case -1:
-			state->stage = 0;
+		case waiting:
+			state->stage = startup;
 			ga_error("BBR: Entering startup state\n");
 			break;
-		case 0:
+		case startup:
 			gain = 2; // Attempt to double delivery rate
 			if (state->start_1 != 0) {
 				// Detect plateaus: If less than 25% growth in 3 rounds, leave startup state
@@ -159,19 +122,19 @@ float bbr_gain(bbr_state_t *state) {
 				if (std::min(state->start_1, state->start_0) * 5 / 4 > latest_throughput) {
 #endif
 					ga_error("BBR: Entering drain state\n");
-					state->stage = 1;
+					state->stage = drain;
 				}
 			}
 			state->start_1 = state->start_0;
 			state->start_0 = latest_throughput;
-		case 1:
+		case drain:
 			gain = .5; // Inverse of startup state gain
 			// Lasts only one round
-			state->stage = 2;
+			state->stage = standby;
 			gettimeofday(&state->prev_probe, NULL);
 			ga_error("BBR: Entering standby state\n");
 			break;
-		case 2:
+		case standby:
 			if (state->latest_rtt - state->rtprop > 5000) { // 5ms
 				gain = .75;
 				gettimeofday(&state->prev_probe, NULL);
@@ -195,7 +158,7 @@ bitrateadaptation_thread(void *param) {
 	struct timeval now, prev_ping, prev_bbr_cycle;
 	bbr_state_t state; 
 	// Initial values
-	state.stage = -1;
+	state.stage = waiting;
 	state.start_0 = 0;
 	state.start_1 = 0;
 	state.bitrate = 1000; // Should probably read a conf file or something
@@ -230,31 +193,9 @@ bitrateadaptation_thread(void *param) {
 				state.bitrate = std::min(std::max(BBR_BITRATE_MINIMUM, state.bitrate), BBR_BITRATE_MAXIMUM);
 #endif
 				
-				// ga_error("Sending reconfiguration message\n");
 				ctrlmsg_t m_reconf;
 				ctrlsys_reconfig(&m_reconf, 0, 0, 0, state.bitrate, 0, 0);
 				ctrl_client_sendmsg(&m_reconf, sizeof(ctrlmsg_system_reconfig_t));
-
-				// reconf.id = 0;
-				// reconf.framerate_n = -1;
-				// reconf.framerate_d = 1;
-				// reconf.width = -1;
-				// reconf.height = -1;
-
-				// reconf.crf = -1;
-				// reconf.bitrateKbps = state.bitrate;
-
-				// encoder
-				// if(m_vencoder->ioctl) {
-				// 	int err = m_vencoder->ioctl(GA_IOCTL_RECONFIGURE, sizeof(reconf), &reconf);
-				// 	if(err < 0) {
-				// 		ga_error("reconfigure encoder failed, err = %d.\n", err);
-				// 	} else {
-				// 		ga_error("reconfigure encoder OK, bitrate=%d; bufsize=%d; framerate=%d/%d.\n",
-				// 				reconf.bitrateKbps, reconf.bufsize,
-				// 				reconf.framerate_n, reconf.framerate_d);
-				// 	}
-				// }
 			}
 		}
 	}

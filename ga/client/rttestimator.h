@@ -16,20 +16,24 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef __RTTSERVER_H__
-#define __RTTSERVER_H__
+#ifndef __RTTESTIMATOR_H__
+#define __RTTESTIMATOR_H__
 
 #define PING_DELAY 20000 // Value in microseconds
-#define RTT_STORE_SIZE 4096
+#define RTT_STORE_SIZE 4096 // Size of RTT storing buffer
+#define RTPROP_WINDOW_SIZE 20 // Value in secondss
+
+#define PKTBUF 512 // Originally defined in ga-server-periodic.cpp
+#define PKTPORT 8556 // Originally defined in ga-server-periodic.cpp
 
 typedef struct bbr_rtt_s {
 	struct timeval time_record;
 	unsigned int rtt_id;
 }	bbr_rtt_t;
 
-void * rttserver_thread(void *param);
+void * rttestimator_thread(void *param);
 
 unsigned int getRtprop();
-unsigned int getMaxRecent(unsigned int timeframe);
+unsigned int getMaxRecent(unsigned int timeframe); // Get the largest RTT value recorded in the current window.
 
 #endif

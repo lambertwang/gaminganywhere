@@ -33,16 +33,16 @@ typedef struct bbr_btlbw_record_s {
 	unsigned int deliveryrate; // In bytes per sec
 }	bbr_record_t;
 
-struct bbr_btlbw_record_s bbr_btlbw[BBR_BTLBW_MAX];
+static struct bbr_btlbw_record_s bbr_btlbw[BBR_BTLBW_MAX];
 static unsigned int latest_throughput; // Not thread safe.
 
 void
 bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned int timestamp, unsigned int pktsize) {
 	// assume ssrc is always video source.
-	unsigned int bbr_btlbw_start = 0;
-	unsigned int bbr_btlbw_head = 0;
-	unsigned int last_pkt_timestamp = 0;
-	struct timeval last_report_sent;
+	static unsigned int bbr_btlbw_start = 0;
+	static unsigned int bbr_btlbw_head = 0;
+	static unsigned int last_pkt_timestamp = 0;
+	static struct timeval last_report_sent;
 
 	// Same frame?
 	if(timestamp == last_pkt_timestamp) {

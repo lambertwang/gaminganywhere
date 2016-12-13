@@ -33,10 +33,9 @@
 #define	CTRL_MSGSYS_SUBTYPE_SHUTDOWN	1	/* system control message: shutdown */
 #define	CTRL_MSGSYS_SUBTYPE_NETREPORT	2	/* system control message: report networking */
 #define CTRL_MSGSYS_SUBTYPE_RECONFIG	3	/* system control message: reconfigure */
-#define CTRL_MSGSYS_SUBTYPE_BBRREPORT		4	/* system control message: BBR estimation report */
-#define CTRL_MSGSYS_SUBTYPE_RTTSERVER	5	/* system control message: UDP ping handler */
-#define CTRL_MSGSYS_SUBTYPE_PING	6	/* system control message: Ping */
-#define	CTRL_MSGSYS_SUBTYPE_MAX		6	/* must equal to the last sub message type */
+#define CTRL_MSGSYS_SUBTYPE_RTTSERVER	4	/* system control message: UDP ping handler */
+#define CTRL_MSGSYS_SUBTYPE_PING	5	/* system control message: Ping */
+#define	CTRL_MSGSYS_SUBTYPE_MAX		5	/* must equal to the last sub message type */
 
 #ifdef WIN32
 #define	BEGIN_CTRL_MESSAGE_STRUCT	__pragma(pack(push, 1))	/* equal to #pragma pack(push, 1) */
@@ -107,21 +106,6 @@ struct ctrlmsg_system_reconfig_s {
 }
 END_CTRL_MESSAGE_STRUCT
 typedef struct ctrlmsg_system_reconfig_s ctrlmsg_system_reconfig_t;
-
-////////////////////////////////////////////////////////////////////////////
-
-BEGIN_CTRL_MESSAGE_STRUCT
-struct ctrlmsg_system_bbrreport_s {
-	unsigned short msgsize;		/*< size of this message, including this field */
-	unsigned char msgtype;		/*< must be CTRL_MSGTYPE_SYSTEM */
-	unsigned char subtype;		/*< must be CTRL_MSGSYS_SUBTYPE_BBRREPORT */
-	unsigned int framecount;
-	unsigned int duration;		/*< report collection duration */
-	unsigned int bytecount;		/*< total received amunt of data (in bytes) */
-	unsigned int rcvrate;		/*< measured receive rate (bytes per s) */
-}
-END_CTRL_MESSAGE_STRUCT
-typedef struct ctrlmsg_system_bbrreport_s ctrlmsg_system_bbrreport_t;
 
 ////////////////////////////////////////////////////////////////////////////
 

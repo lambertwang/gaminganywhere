@@ -55,20 +55,20 @@
  * 2 : Probe / steady state
  */
 enum BBR_State{
-	waiting,
-	startup,
-	drain,
-	standby
+	waiting = -1,
+	startup = 0,
+	drain = 1,
+	standby = 2
 };
 
 typedef struct bbr_state_s {
 	enum BBR_State stage;	// Current BBR stage: One of Waiting, Startup, Drain, or Standby
 	unsigned int start_0;	// Previous throughput value
-	unsigned int start_1;	// Newest throughput value
+	unsigned int start_1;	// Previous previous throughput value
 	struct timeval prev_probe;	// Time that the last probe took place
 	int rtprop; // Time delta values in microseconds
 	int latest_rtt;	// Set by getMaxRecent, equal to the max RTT in the window.
-	int bitrate;	// Bitrate of system
+	int bitrate;	// Bitrate that the server side encoder has been set to
 } bbr_state_t;
 
 void bbr_update(

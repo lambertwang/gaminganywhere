@@ -26,9 +26,7 @@
 #include <Ws2tcpip.h>
 #else
 #include <sys/socket.h>
-// #include <netinet/in.h>
 #include <arpa/inet.h>
-// #include <netdb.h>
 #endif
 
 #ifndef WIN32
@@ -42,10 +40,6 @@
 #include "controller.h"
 #include "encoder-common.h"
 #include "../../client/rttserver.h"
-
-// #define	TEST_RECONFIGURE
-#define PKTBUF 512
-#define PKTPORT 8556
 
 // image source pipeline:
 //	vsource -- [vsource-%d] --> filter -- [filter-%d] --> encoder
@@ -162,8 +156,6 @@ rtt_handler(void *) {
 	int sock;
 #endif
 	struct sockaddr_in myaddr;
-	// struct sockaddr_in client_addr;
-	// socklen_t addrlen = sizeof(client_addr);
 	int recvlen;
 
 	// Initialize socket
@@ -189,30 +181,11 @@ rtt_handler(void *) {
 	myaddr.sin_addr.s_addr = INADDR_ANY;
 	myaddr.sin_port = htons(PKTPORT);
 
-	// Bind socket
-	// ga_error("rttserver: Binding to socket\n");
-	// if(bind(sock, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0){
-	// 	ga_error("rttserver: Failed to bind.\n");
-	// 	return NULL;
-	// }
-
 	// Listen for packets; if received, parrot them back
 	char *buf;
 	buf = (char *) malloc(PKTBUF);
 
 	while(1){
-		// Reset buffer
-		//memset(buf, '\0', PKTBUF);
-
-		// recvlen = recvfrom(sock, buf, PKTBUF, 0, (struct sockaddr *)&client_addr, &addrlen);
-		// ga_error("rtt_handler: Received ping. %d bytes\n", recvlen);
-		// if(recvlen > 0){
-		// 	unsigned int rec_id = atoi(buf);
-		// 	buf[recvlen] = 0;
-		// 	// Send back
-		// 	ga_error("rtt_handler: Sending response id %d\n", rec_id);
-		// 	sendto(sock, buf, recvlen, 0, (struct sockaddr *)&client_addr, addrlen);
-		// }
 
 		struct sockaddr_in toaddr;
 		memset((char *)&toaddr, 0, sizeof(toaddr));
@@ -223,10 +196,6 @@ rtt_handler(void *) {
 		pthread_mutex_lock(&ping_queue_mutex);
 		struct RTSPConf *conf = rtspconf_global();
 		for (int i = 0; i < ping_queue_size; i++) {
-			// ga_error("rtt_handler: Sending response id %d\n", ping_id_queue[i]);
-			// sprintf(buf, "%8d", ping_id_queue[i]);
-			// buf[9] = 0;
-			// sendto(sock, buf, 9, 0, (struct sockaddr *) &(conf->sin), sizeof(&(conf->sin)));
 			sendto(sock, (char *) &ping_id_queue[i], sizeof(bbr_rtt_t), 0, (struct sockaddr *) &(toaddr), sizeof(toaddr));
 		}
 		ping_queue_size = 0;
@@ -279,20 +248,6 @@ test_reconfig(void *) {
 #if 0
 		reconf.bufsize = 5 * kbitrate[s%2] / 24;
 #endif
-		// reconf.framerate_n = framerate[s%3][0];
-		// reconf.framerate_d = framerate[s%3][1];
-		// vsource
-		/*
-		if(m_vsource->ioctl) {
-			err = m_vsource->ioctl(GA_IOCTL_RECONFIGURE, sizeof(reconf), &reconf);
-			if(err < 0) {
-				ga_error("reconfigure vsource failed, err = %d.\n", err);
-			} else {
-				ga_error("reconfigure vsource OK, framerate=%d/%d.\n",
-						reconf.framerate_n, reconf.framerate_d);
-			}
-		}
-		*/
 		// encoder
 		if(m_vencoder->ioctl) {
 			err = m_vencoder->ioctl(GA_IOCTL_RECONFIGURE, sizeof(reconf), &reconf);
@@ -438,8 +393,6 @@ main(int argc, char *argv[]) {
 	pthread_t t;
 	pthread_create(&t, NULL, test_reconfig, NULL);
 #endif
-	//rtspserver_main(NULL);
-	//liveserver_main(NULL);
 	while(1) {
 		usleep(5000000);
 	}

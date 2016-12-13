@@ -48,7 +48,7 @@ extern "C" {
 #include "controller.h"
 #include "ctrl-sdl.h"
 #include "bitrateadaptation.h"
-#include "rttserver.h"
+#include "rttestimator.h"
 
 #include "ga-common.h"
 #include "ga-conf.h"
@@ -78,7 +78,6 @@ static int windowSizeY[VIDEO_SOURCE_CHANNEL_MAX];
 static int nativeSizeX[VIDEO_SOURCE_CHANNEL_MAX];
 static int nativeSizeY[VIDEO_SOURCE_CHANNEL_MAX];
 static map<unsigned int, int> windowId2ch;
-static int bitrateAdaptationEnabled = 0;
 
 // save files
 static FILE *savefp_keyts = NULL;
@@ -701,8 +700,9 @@ main(int argc, char *argv[]) {
 	pthread_t ctrlthread;
 	pthread_t watchdog;
 	pthread_t bitrateadaptationthread;
-	pthread_t rttserverthread;
+	pthread_t rttestimatorthread;
 	char savefile_keyts[128];
+	static int bitrateAdaptationEnabled = 0;
 	//
 #ifdef ANDROID
 	if(ga_init("/sdcard/ga/android.conf", NULL) < 0) {
@@ -727,7 +727,7 @@ main(int argc, char *argv[]) {
 		rtsperror("*** Relative mouse mode enabled.\n");
 		relativeMouseMode = 1;
 	}
-	//
+	// Check to see if bitrate-adaptation is set in the config file
 	if(ga_conf_readbool("bitrate-adaptation", 0) != 0){
 		rtsperror("*** Bitrate adaptation prototype enabled\n");
 		bitrateAdaptationEnabled = 1;
@@ -820,20 +820,21 @@ main(int argc, char *argv[]) {
 		return -1;
 	}
 	pthread_detach(rtspthread);
-	//
+	// If bitrate adaptation was enabled in the config, start the bitrate adaptation thread,
+	// as well as the RTT Estimator.
 	if(bitrateAdaptationEnabled != 0){
 		if(pthread_create(&bitrateadaptationthread, NULL, bitrateadaptation_thread, NULL) != 0){
 			rtsperror("Cannot create bitrate adaptation thread.\n");
 			return -1;
 		}
 		in_addr ipaddr = rtspconf->sin.sin_addr;
-		if(pthread_create(&rttserverthread, NULL, rttserver_thread, (void *) &ipaddr) != 0){
-			rtsperror("Cannot create UDP ping thread.\n");
+		if(pthread_create(&rttestimatorthread, NULL, rttestimator_thread, (void *) &ipaddr) != 0){
+			rtsperror("Cannot create RTT estimator thread.\n");
 			return -1;
 		}
 
 		pthread_detach(bitrateadaptationthread);
-		pthread_detach(rttserverthread);
+		pthread_detach(rttestimatorthread);
 	}
 	//
 	while(rtspThreadParam.running) {
@@ -851,7 +852,7 @@ main(int argc, char *argv[]) {
 		pthread_cancel(ctrlthread);
 	if(bitrateAdaptationEnabled != 0)
 		pthread_cancel(bitrateadaptationthread);
-		pthread_cancel(rttserverthread);
+		pthread_cancel(rttestimatorthread);
 	pthread_cancel(watchdog);
 #endif
 	//SDL_WaitThread(thread, &status);

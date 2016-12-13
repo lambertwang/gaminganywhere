@@ -94,8 +94,6 @@ liveserver_main(void *arg) {
 //////// qos report functions
 
 static std::map<RTPSink*, std::map<unsigned/*SSRC*/,qos_server_record_t> > sinkmap;
-static pthread_mutex_t m_rtt_map;
-static std::map<unsigned int, unsigned int> rtt_map;
 static TaskToken qos_task = NULL;
 static int qos_started = 0;
 static struct timeval qos_tv;

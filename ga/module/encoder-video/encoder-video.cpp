@@ -29,10 +29,6 @@
 
 #include "dpipe.h"
 
-//// Prevent use of GLOBAL_HEADER to pass parameters, disabled by default
-//#define STANDALONE_SDP	1
-//#define TIMING_TESTS
-
 static struct RTSPConf *rtspconf = NULL;
 
 static int vencoder_initialized = 0;

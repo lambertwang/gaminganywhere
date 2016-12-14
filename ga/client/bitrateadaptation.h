@@ -22,7 +22,6 @@
 // Record windowed maximum of delivery rate
 #define BBR_BTLBW_MAX 256
 #define BBR_BTLBW_WINDOW_SIZE_US (1000 * 1000)
-#define BBR_BTLBW_REPORT_PERIOD_US (500 * 1000)
 
 // Set minimum and maximum bitrates for BBR
 #define BBR_BITRATE_MINIMUM 50
@@ -30,6 +29,7 @@
 
 #define BBR_CYCLE_DELAY 500000 // Value in microseconds
 #define BBR_PROBE_INTERVAL_US (4 * 1000 * 1000) // 4 seconds
+#define BBR_BTLBW_REPORT_PERIOD_US (500 * 1000)
 
 /**
  * BBR Constants
@@ -41,7 +41,7 @@
  * BBR Congestion-Based Congestion Control. ACMQueue, 20-53. Retrieved December 13, 2016, 
  * from http://queue.acm.org/app/
  */
-// Needs to be filled in: 5/4, .5, .75
+// TODO: Needs to be filled in: 5/4, .5, .75
 
 /**
  * BBR State table
@@ -55,10 +55,10 @@
  * 2 : Probe / steady state
  */
 enum BBR_State{
-	waiting = -1,
-	startup = 0,
-	drain = 1,
-	standby = 2
+	waiting,
+	startup,
+	drain,
+	standby
 };
 
 typedef struct bbr_state_s {
@@ -70,6 +70,13 @@ typedef struct bbr_state_s {
 	int latest_rtt;	// Set by getMaxRecent, equal to the max RTT in the window.
 	int bitrate;	// Bitrate that the server side encoder has been set to
 } bbr_state_t;
+
+typedef struct bbr_btlbw_record_s {
+	struct timeval rcvtime;
+	unsigned int pktsize;
+	unsigned int timeelapsed; // Time in usec
+	unsigned int deliveryrate; // In bytes per sec
+} bbr_record_t;
 
 void bbr_update(
     unsigned int ssrc, 

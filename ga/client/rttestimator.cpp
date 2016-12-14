@@ -143,7 +143,7 @@ rttestimator_thread(void *param) {
 				unsigned int rtt_val = (end.tv_sec - read_data.time_record.tv_sec) * 1000000.0 + 
 					end.tv_usec - read_data.time_record.tv_usec;
 				
-				// NOTE: This does not take into account dropped packets or skipped replies.
+				// TODO: Take into account dropped packets or skipped replies.
 				rtt_update(read_data.rtt_id, rtt_val);
 
 				read_head += sizeof(bbr_rtt_t);

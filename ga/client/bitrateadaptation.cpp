@@ -26,22 +26,15 @@
 #include "rttserver.h"
 #include "bitrateadaptation.h"
 
-typedef struct bbr_btlbw_record_s {
-	struct timeval rcvtime;
-	unsigned int pktsize;
-	unsigned int timeelapsed; // Time in usec
-	unsigned int deliveryrate; // In bytes per sec
-}	bbr_record_t;
-
 static struct bbr_btlbw_record_s bbr_btlbw[BBR_BTLBW_MAX];
 static unsigned int latest_throughput; // Not thread safe.
+static unsigned int bbr_btlbw_start = 0;
+static unsigned int bbr_btlbw_head = 0;
+static unsigned int last_pkt_timestamp = 0;
 
 void
 bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned int timestamp, unsigned int pktsize) {
 	// assume ssrc is always video source.
-	static unsigned int bbr_btlbw_start = 0;
-	static unsigned int bbr_btlbw_head = 0;
-	static unsigned int last_pkt_timestamp = 0;
 	static struct timeval last_report_sent;
 
 	// Same frame?
@@ -161,7 +154,7 @@ bitrateadaptation_thread(void *param) {
 	state.stage = waiting;
 	state.start_0 = 0;
 	state.start_1 = 0;
-	state.bitrate = 1000; // Should probably read a conf file or something
+	state.bitrate = 1000; // TODO: Read from a conf file
 
 	ga_error("reconfigure thread started ...\n");
 	unsigned int ping_count = 0;

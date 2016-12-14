@@ -23,8 +23,8 @@
 #define RTT_STORE_SIZE 4096 // Size of RTT storing buffer
 #define RTPROP_WINDOW_SIZE 20 // Value in secondss
 
-#define PKTBUF 512 // Originally defined in ga-server-periodic.cpp
-#define PKTPORT 8556 // Originally defined in ga-server-periodic.cpp
+#define PKTBUF 512
+#define PKTPORT 8556
 
 typedef struct bbr_rtt_s {
 	struct timeval time_record;
@@ -33,7 +33,7 @@ typedef struct bbr_rtt_s {
 
 void * rttestimator_thread(void *param);
 
-unsigned int getRtprop();
+unsigned int getRtprop(); // Computes time delta values in microseconds.
 unsigned int getMaxRecent(unsigned int timeframe); // Get the largest RTT value recorded in the current window.
 
 #endif

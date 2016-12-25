@@ -39,7 +39,7 @@
 #include "rtspconf.h"
 #include "controller.h"
 #include "encoder-common.h"
-#include "../../client/rttserver.h"
+#include "../../client/rttestimator.h"
 
 // image source pipeline:
 //	vsource -- [vsource-%d] --> filter -- [filter-%d] --> encoder

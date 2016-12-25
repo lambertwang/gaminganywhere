@@ -41,7 +41,12 @@
  * BBR Congestion-Based Congestion Control. ACMQueue, 20-53. Retrieved December 13, 2016, 
  * from http://queue.acm.org/app/
  */
-// TODO: Needs to be filled in: 5/4, .5, .75
+// TODO: Needs to be filled in: 5/4
+#define GAIN_MAINTAIN 1.0
+#define GAIN_INCREASE 2.0
+#define GAIN_DRAIN .5
+#define GAIN_STANDBY .75
+#define GAIN_PROBE 1.25
 
 /**
  * BBR State table
@@ -55,10 +60,10 @@
  * 2 : Probe / steady state
  */
 enum BBR_State{
-	waiting,
-	startup,
-	drain,
-	standby
+	WAITING,
+	STARTUP,
+	DRAIN,
+	STANDBY
 };
 
 typedef struct bbr_state_s {

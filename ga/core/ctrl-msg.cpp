@@ -34,7 +34,7 @@ static ctrlsys_handler_t ctrlsys_handler_list[] = {
 	NULL,	/* 1 = CTRL_MSGSYS_SUBTYPE_SHUTDOWN */
 	NULL,	/* 2 = CTRL_MSGSYS_SUBTYPE_NETREPORT */
 	NULL,	/* 3 = CTRL_MSGSYS_SUBTYPE_RECONFIG */
-	NULL,	/* 4 = CTRL_MSGSYS_SUBTYPE_RTTSERVER */
+	NULL,	/* 4 = CTRL_MSGSYS_SUBTYPE_RTTESTIMATOR */
 	NULL	/* 5 = CTRL_MSGSYS_SUBTYPE_PING */
 };
 
@@ -62,7 +62,7 @@ static int
 ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 	ctrlmsg_system_netreport_t *netreport;
 	ctrlmsg_system_reconfig_t *reconf;
-	ctrlmsg_system_rttserver_t *rttserver;
+	ctrlmsg_system_rttestimator_t *rttestimator;
 	ctrlmsg_system_ping_t *ping;
 	msg->msgsize = ntohs(msg->msgsize);
 	switch(msg->subtype) {
@@ -92,13 +92,13 @@ ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 		reconf->width = htonl(reconf->width);
 		reconf->height = htonl(reconf->height);
 		break;
-	case CTRL_MSGSYS_SUBTYPE_RTTSERVER:
-		if(msg->msgsize != sizeof(ctrlmsg_system_rttserver_t))
+	case CTRL_MSGSYS_SUBTYPE_RTTESTIMATOR:
+		if(msg->msgsize != sizeof(ctrlmsg_system_rttestimator_t))
 			return -1;
-		rttserver = (ctrlmsg_system_rttserver_t*) msg;
-		// rttserver->sin_family = htons(sin_family);
-		// rttserver->sin_port = htons(sin_port);
-		// rttserver->s_addr = htonl(s_addr);
+		rttestimator = (ctrlmsg_system_rttestimator_t*) msg;
+		// rttestimator->sin_family = htons(sin_family);
+		// rttestimator->sin_port = htons(sin_port);
+		// rttestimator->s_addr = htonl(s_addr);
 		break;
 	case CTRL_MSGSYS_SUBTYPE_PING:
 		if(msg->msgsize != sizeof(ctrlmsg_system_ping_t))
@@ -204,16 +204,16 @@ ctrlsys_reconfig(ctrlmsg_t *msg,
  * Send a signal to the server to start the UDP ping handler
  *
  * @param msg [in]	The structure to store the built message.
- *			The size of the structure must be at least \a sizeof(ctrlmsg_system_rttserver_t)
+ *			The size of the structure must be at least \a sizeof(ctrlmsg_system_rttestimator_t)
  */
 ctrlmsg_t *
-//  ctrlsys_rttserver(ctrlmsg_t *msg, short sin_family, unsigned short sin_port, unsigned long s_addr) {
-ctrlsys_rttserver(ctrlmsg_t *msg) {
-	ctrlmsg_system_rttserver_t *msgn = (ctrlmsg_system_rttserver_t*) msg;
-	bzero(msg, sizeof(ctrlmsg_system_rttserver_t));
-	msgn->msgsize = htons(sizeof(ctrlmsg_system_rttserver_t));
+//  ctrlsys_rttestimator(ctrlmsg_t *msg, short sin_family, unsigned short sin_port, unsigned long s_addr) {
+ctrlsys_rttestimator(ctrlmsg_t *msg) {
+	ctrlmsg_system_rttestimator_t *msgn = (ctrlmsg_system_rttestimator_t*) msg;
+	bzero(msg, sizeof(ctrlmsg_system_rttestimator_t));
+	msgn->msgsize = htons(sizeof(ctrlmsg_system_rttestimator_t));
 	msgn->msgtype = CTRL_MSGTYPE_SYSTEM;
-	msgn->subtype = CTRL_MSGSYS_SUBTYPE_RTTSERVER;
+	msgn->subtype = CTRL_MSGSYS_SUBTYPE_RTTESTIMATOR;
 	// msgn->sin_family = htons(sin_family);
 	// msgn->sin_port = htons(sin_port);
 	// msgn->s_addr = htonl(s_addr);

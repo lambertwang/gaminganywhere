@@ -23,7 +23,7 @@
 
 #include "ga-common.h"
 #include "controller.h"
-#include "rttserver.h"
+#include "rttestimator.h"
 #include "bitrateadaptation.h"
 
 static struct bbr_btlbw_record_s bbr_btlbw[BBR_BTLBW_MAX];
@@ -98,15 +98,15 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 }
 
 float bbr_gain(bbr_state_t *state) {
-	float gain = 1.0;
+	float gain = GAIN_MAINTAIN;
 	struct timeval now;
 	switch (state->stage) {
-		case waiting:
-			state->stage = startup;
+		case WAITING:
+			state->stage = STARTUP;
 			ga_error("BBR: Entering startup state\n");
 			break;
-		case startup:
-			gain = 2; // Attempt to double delivery rate
+		case STARTUP:
+			gain = GAIN_INCREASE; // Attempt to double delivery rate
 			if (state->start_1 != 0) {
 				// Detect plateaus: If less than 25% growth in 3 rounds, leave startup state
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
@@ -115,21 +115,21 @@ float bbr_gain(bbr_state_t *state) {
 				if (std::min(state->start_1, state->start_0) * 5 / 4 > latest_throughput) {
 #endif
 					ga_error("BBR: Entering drain state\n");
-					state->stage = drain;
+					state->stage = DRAIN;
 				}
 			}
 			state->start_1 = state->start_0;
 			state->start_0 = latest_throughput;
-		case drain:
-			gain = .5; // Inverse of startup state gain
+		case DRAIN:
+			gain = GAIN_DRAIN; // Inverse of startup state gain
 			// Lasts only one round
-			state->stage = standby;
+			state->stage = STANDBY;
 			gettimeofday(&state->prev_probe, NULL);
 			ga_error("BBR: Entering standby state\n");
 			break;
-		case standby:
+		case STANDBY:
 			if (state->latest_rtt - state->rtprop > 5000) { // 5ms
-				gain = .75;
+				gain = GAIN_STANDBY;
 				gettimeofday(&state->prev_probe, NULL);
 			} else {
 				gettimeofday(&now, NULL);
@@ -137,7 +137,7 @@ float bbr_gain(bbr_state_t *state) {
 					(now.tv_usec - state->prev_probe.tv_usec) >
 					BBR_PROBE_INTERVAL_US) {
 					ga_error("BBR: Probing bandwidth\n");
-					gain = 1.25;
+					gain = GAIN_PROBE;
 					gettimeofday(&state->prev_probe, NULL);
 				}
 			}
@@ -151,7 +151,7 @@ bitrateadaptation_thread(void *param) {
 	struct timeval now, prev_ping, prev_bbr_cycle;
 	bbr_state_t state; 
 	// Initial values
-	state.stage = waiting;
+	state.stage = WAITING;
 	state.start_0 = 0;
 	state.start_1 = 0;
 	state.bitrate = 1000; // TODO: Read from a conf file

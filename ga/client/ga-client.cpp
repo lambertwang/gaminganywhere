@@ -47,8 +47,8 @@ extern "C" {
 
 #include "controller.h"
 #include "ctrl-sdl.h"
-#include "bitrateadaptation.h"
-#include "rttestimator.h"
+#include "bitrateadaptor.h"
+#include "rttserver.h"
 
 #include "ga-common.h"
 #include "ga-conf.h"
@@ -699,8 +699,8 @@ main(int argc, char *argv[]) {
 	pthread_t rtspthread;
 	pthread_t ctrlthread;
 	pthread_t watchdog;
-	pthread_t bitrateadaptationthread;
-	pthread_t rttestimatorthread;
+	pthread_t bitrateadaptorthread;
+	pthread_t rttserverthread;
 	char savefile_keyts[128];
 	static int bitrateAdaptationEnabled = 0;
 	//
@@ -821,20 +821,20 @@ main(int argc, char *argv[]) {
 	}
 	pthread_detach(rtspthread);
 	// If bitrate adaptation was enabled in the config, start the bitrate adaptation thread,
-	// as well as the RTT Estimator.
+	// as well as the RTT server.
 	if(bitrateAdaptationEnabled != 0){
-		if(pthread_create(&bitrateadaptationthread, NULL, bitrateadaptation_thread, NULL) != 0){
+		if(pthread_create(&bitrateadaptorthread, NULL, bitrateadaptor_thread, NULL) != 0){
 			rtsperror("Cannot create bitrate adaptation thread.\n");
 			return -1;
 		}
 		in_addr ipaddr = rtspconf->sin.sin_addr;
-		if(pthread_create(&rttestimatorthread, NULL, rttestimator_thread, (void *) &ipaddr) != 0){
-			rtsperror("Cannot create RTT estimator thread.\n");
+		if(pthread_create(&rttserverthread, NULL, rttserver_thread, (void *) &ipaddr) != 0){
+			rtsperror("Cannot create RTT server thread.\n");
 			return -1;
 		}
 
-		pthread_detach(bitrateadaptationthread);
-		pthread_detach(rttestimatorthread);
+		pthread_detach(bitrateadaptorthread);
+		pthread_detach(rttserverthread);
 	}
 	//
 	while(rtspThreadParam.running) {
@@ -851,8 +851,8 @@ main(int argc, char *argv[]) {
 	if(rtspconf->ctrlenable)
 		pthread_cancel(ctrlthread);
 	if(bitrateAdaptationEnabled != 0)
-		pthread_cancel(bitrateadaptationthread);
-		pthread_cancel(rttestimatorthread);
+		pthread_cancel(bitrateadaptorthread);
+		pthread_cancel(rttserverthread);
 	pthread_cancel(watchdog);
 #endif
 	//SDL_WaitThread(thread, &status);

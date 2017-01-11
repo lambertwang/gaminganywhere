@@ -23,10 +23,9 @@
 
 #include "ga-common.h"
 #include "controller.h"
-#include "rttestimator.h"
-#include "bitrateadaptation.h"
+#include "rttserver.h"
+#include "bitrateadaptor.h"
 
-static struct bbr_btlbw_record_s bbr_btlbw[BBR_BTLBW_MAX];
 static unsigned int latest_throughput; // Not thread safe.
 static unsigned int bbr_btlbw_start = 0;
 static unsigned int bbr_btlbw_head = 0;
@@ -36,6 +35,7 @@ void
 bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned int timestamp, unsigned int pktsize) {
 	// assume ssrc is always video source.
 	static struct timeval last_report_sent;
+	static struct bbr_btlbw_record_s bbr_btlbw[BBR_BTLBW_MAX];
 
 	// Same frame?
 	if(timestamp == last_pkt_timestamp) {
@@ -106,6 +106,7 @@ float bbr_gain(bbr_state_t *state) {
 			ga_error("BBR: Entering startup state\n");
 			break;
 		case STARTUP:
+			// TODO: Startup state seems to end too quickly
 			gain = GAIN_INCREASE; // Attempt to double delivery rate
 			if (state->start_1 != 0) {
 				// Detect plateaus: If less than 25% growth in 3 rounds, leave startup state
@@ -128,6 +129,10 @@ float bbr_gain(bbr_state_t *state) {
 			ga_error("BBR: Entering standby state\n");
 			break;
 		case STANDBY:
+			/**
+			 * TODO: Standby state should stop revert probe if the probe
+			 * results in no significant increase in latest throughput.
+			 */
 			if (state->latest_rtt - state->rtprop > 5000) { // 5ms
 				gain = GAIN_STANDBY;
 				gettimeofday(&state->prev_probe, NULL);
@@ -147,7 +152,7 @@ float bbr_gain(bbr_state_t *state) {
 }
 
 void *
-bitrateadaptation_thread(void *param) {
+bitrateadaptor_thread(void *param) {
 	struct timeval now, prev_ping, prev_bbr_cycle;
 	bbr_state_t state; 
 	// Initial values
@@ -173,8 +178,11 @@ bitrateadaptation_thread(void *param) {
 
 		delta = (now.tv_sec - prev_bbr_cycle.tv_sec) * 1000000 + (now.tv_usec - prev_bbr_cycle.tv_usec);
 		if (delta >= BBR_CYCLE_DELAY) {
+			prev_bbr_cycle = now;
 			state.rtprop = getRtprop();
 			state.latest_rtt = getMaxRecent(BBR_CYCLE_DELAY);
+			ga_error("Bitrate adaptor cycke: rtprop: %d us, latest_rtt: %d, latest_throughput: %d (some kind of units)\n",
+				state.rtprop, state.latest_rtt, latest_throughput);
 
 			float gain = bbr_gain(&state);
 			if (fabs(gain - 1.0) > 0.1) {

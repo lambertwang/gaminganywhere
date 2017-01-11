@@ -16,8 +16,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef __RTTESTIMATOR_H__
-#define __RTTESTIMATOR_H__
+#ifndef __rttserver_H__
+#define __rttserver_H__
 
 #define PING_DELAY 20000 // Value in microseconds
 #define RTT_STORE_SIZE 4096 // Size of RTT storing buffer
@@ -31,7 +31,7 @@ typedef struct bbr_rtt_s {
 	unsigned int rtt_id;
 }	bbr_rtt_t;
 
-void * rttestimator_thread(void *param);
+void * rttserver_thread(void *param);
 
 unsigned int getRtprop(); // Computes time delta values in microseconds.
 unsigned int getMaxRecent(unsigned int timeframe); // Get the largest RTT value recorded in the current window.

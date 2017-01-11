@@ -39,7 +39,7 @@
 #include "rtspconf.h"
 #include "controller.h"
 #include "encoder-common.h"
-#include "../../client/rttestimator.h"
+#include "../../client/rttserver.h"
 
 // image source pipeline:
 //	vsource -- [vsource-%d] --> filter -- [filter-%d] --> encoder
@@ -143,83 +143,6 @@ run_modules() {
 	return 0;
 }
 
-static pthread_mutex_t ping_queue_mutex;
-static bbr_rtt_t ping_id_queue[RTT_STORE_SIZE];
-static unsigned int ping_queue_size = 0;
-
-static void *
-rtt_handler(void *) {
-#ifdef _WIN32
-	SOCKET sock;
-	WSADATA wsa;
-#else
-	int sock;
-#endif
-	struct sockaddr_in myaddr;
-	int recvlen;
-
-	// Initialize socket
-#ifdef _WIN32
-	// Initialize winsock
-	if(WSAStartup(MAKEWORD(2,2),&wsa) != 0){
-		ga_error("rtt_handler: Winsock failed to initialize\n");
-		exit(EXIT_FAILURE);
-	}
-	// Create socket
-	if((sock = socket(AF_INET, SOCK_DGRAM, 0)) == SOCKET_ERROR){
-#else
-	// Create socket
-	if((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0){
-#endif
-		ga_error("rtt_handler: Failed to create socket\n");
-		return NULL;
-	}
-
-	// Set address structure
-	memset((char *)&myaddr, 0, sizeof(myaddr));
-	myaddr.sin_family = AF_INET;
-	myaddr.sin_addr.s_addr = INADDR_ANY;
-	myaddr.sin_port = htons(PKTPORT);
-
-	// Listen for packets; if received, parrot them back
-	char *buf;
-	buf = (char *) malloc(PKTBUF);
-
-	while(1){
-
-		struct sockaddr_in toaddr;
-		memset((char *)&toaddr, 0, sizeof(toaddr));
-		toaddr.sin_family = AF_INET;
-		toaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-		toaddr.sin_port = htons(PKTPORT);
-		
-		pthread_mutex_lock(&ping_queue_mutex);
-		struct RTSPConf *conf = rtspconf_global();
-		for (int i = 0; i < ping_queue_size; i++) {
-			sendto(sock, (char *) &ping_id_queue[i], sizeof(bbr_rtt_t), 0, (struct sockaddr *) &(toaddr), sizeof(toaddr));
-		}
-		ping_queue_size = 0;
-		pthread_mutex_unlock(&ping_queue_mutex);
-	}
-	free(buf);
-
-#ifdef _WIN32
-	WSACleanup();
-#endif
-
-	int status = 0;
-
-#ifdef _WIN32
-	status = shutdown(sock, SD_BOTH);
-	if(status == 0){ status = closesocket(sock); }
-#else
-	status = shutdown(sock, SHUT_RDWR);
-	if(status == 0){ status = close(sock); }
-#endif
-
-	return NULL;
-}
-
 #ifdef TEST_RECONFIGURE
 static void *
 test_reconfig(void *) {
@@ -312,20 +235,78 @@ handle_reconfig(ctrlmsg_system_t *msg){
 	return;
 }
 
-void
-handle_rttserver(ctrlmsg_system_t *msg){
-	pthread_t rttserverthread;
+static pthread_mutex_t rttserver_mutex;
+// Socket descriptors
+#ifdef _WIN32
+static SOCKET rtt_server_sock;
+#else
+static int rtt_server_sock;
+#endif
 
-	// Only start the handler once, in case multiple ctrlmsg signals are sent.
+void
+init_rttserver() {
 	if(!rttThreadStarted){
 		rttThreadStarted = true;
-		pthread_mutex_init(&ping_queue_mutex, NULL);
-		ga_error("handle_rttserver: Initializing RTT response thread.\n");
-		if(pthread_create(&rttserverthread, NULL, rtt_handler, NULL) != 0){
-			ga_error("Cannot create UDP Handler thread.\n");
-			return;
-		}
 	}
+#ifdef _WIN32
+	WSADATA wsa;
+#endif
+	struct sockaddr_in myaddr;
+	int recvlen;
+
+	// Initialize socket
+#ifdef _WIN32
+	// Initialize winsock
+	if(WSAStartup(MAKEWORD(2,2),&wsa) != 0){
+		ga_error("rtt_handler: Winsock failed to initialize\n");
+		exit(EXIT_FAILURE);
+	}
+	// Create socket
+	if((rtt_server_sock = socket(AF_INET, SOCK_DGRAM, 0)) == SOCKET_ERROR){
+#else
+	// Create socket
+	if((rtt_server_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0){
+#endif
+		ga_error("rtt_handler: Failed to create socket\n");
+		return;
+	}
+
+	// Set address structure
+	memset((char *)&myaddr, 0, sizeof(myaddr));
+	myaddr.sin_family = AF_INET;
+	myaddr.sin_addr.s_addr = INADDR_ANY;
+	myaddr.sin_port = htons(PKTPORT);
+}
+
+void
+close_rttserver() {
+	if(!rttThreadStarted){
+		return;
+	}
+
+#ifdef _WIN32
+	WSACleanup();
+#endif
+
+	int status = 0;
+
+#ifdef _WIN32
+	status = shutdown(rtt_server_sock, SD_BOTH);
+	if(status == 0){ status = closesocket(rtt_server_sock); }
+#else
+	status = shutdown(rtt_server_sock, SHUT_RDWR);
+	if(status == 0){ status = close(rtt_server_sock); }
+#endif
+
+	return;
+}
+
+void
+handle_rttserver(ctrlmsg_system_t *msg){
+	// Only start the handler once, in case multiple ctrlmsg signals are sent.
+	pthread_mutex_lock(&rttserver_mutex);
+	init_rttserver();
+	pthread_mutex_unlock(&rttserver_mutex);
 
 	return;
 }
@@ -335,14 +316,25 @@ handle_ping(ctrlmsg_system_t *msg) {
 	if(!rttThreadStarted){
 		return;
 	}
+	pthread_mutex_lock(&rttserver_mutex);
 	ctrlmsg_system_ping_t *msgn = (ctrlmsg_system_ping_t*) msg;
 
-	pthread_mutex_lock(&ping_queue_mutex);
-	ping_id_queue[ping_queue_size].rtt_id = msgn->ping_id;
-	ping_id_queue[ping_queue_size].time_record.tv_sec = msgn->tv_sec;
-	ping_id_queue[ping_queue_size].time_record.tv_usec = msgn->tv_usec;
-	ping_queue_size = (ping_queue_size + 1) % RTT_STORE_SIZE;
-	pthread_mutex_unlock(&ping_queue_mutex);
+	bbr_rtt_t buf;
+	buf.rtt_id = msgn->ping_id;
+	buf.time_record.tv_sec = msgn->tv_sec;
+	buf.time_record.tv_usec = msgn->tv_usec;
+
+	// Format destinatio address for packet
+	struct sockaddr_in toaddr;
+	memset((char *)&toaddr, 0, sizeof(toaddr));
+	toaddr.sin_family = AF_INET;
+	toaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	toaddr.sin_port = htons(PKTPORT);
+	
+	// struct RTSPConf *conf = rtspconf_global();
+	// Send response to client
+	sendto(rtt_server_sock, (char *) &buf, sizeof(bbr_rtt_t), 0, (struct sockaddr *) &(toaddr), sizeof(toaddr));
+	pthread_mutex_unlock(&rttserver_mutex);
 
 	return;
 }
@@ -383,10 +375,14 @@ main(int argc, char *argv[]) {
 	if(load_modules() < 0)	 	{ return -1; }
 	if(init_modules() < 0)	 	{ return -1; }
 	if(run_modules() < 0)	 	{ return -1; }
+
+	// Init static mutex
+	pthread_mutex_init(&rttserver_mutex, NULL);
+
 	// enable handler to monitored network status
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_NETREPORT, handle_netreport);
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_RECONFIG, handle_reconfig);
-	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_RTTSERVER, handle_rttserver);
+	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_INIT_RTTSERVER, handle_rttserver);
 	ctrlsys_set_handler(CTRL_MSGSYS_SUBTYPE_PING, handle_ping);
 	//
 #ifdef TEST_RECONFIGURE
@@ -398,6 +394,10 @@ main(int argc, char *argv[]) {
 	}
 	// alternatively, it is able to create a thread to run rtspserver_main:
 	//	pthread_create(&t, NULL, rtspserver_main, NULL);
+	// Close rtt server
+	pthread_mutex_lock(&rttserver_mutex);
+	close_rttserver();
+	pthread_mutex_unlock(&rttserver_mutex);
 	//
 	ga_deinit();
 	//

@@ -16,8 +16,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef __BITRATEADAPTATION_H__
-#define __BITRATEADAPTATION_H__
+#ifndef __BITRATEADAPTOR_H__
+#define __BITRATEADAPTOR_H__
 
 // Record windowed maximum of delivery rate
 #define BBR_BTLBW_MAX 256
@@ -27,8 +27,9 @@
 #define BBR_BITRATE_MINIMUM 50
 #define BBR_BITRATE_MAXIMUM 30000
 
-#define BBR_CYCLE_DELAY 500000 // Value in microseconds
-#define BBR_PROBE_INTERVAL_US (4 * 1000 * 1000) // 4 seconds
+#define BBR_CYCLE_DELAY 500 * 1000 // Value in microseconds
+// #define BBR_PROBE_INTERVAL_US (4 * 1000 * 1000) // 4 seconds
+#define BBR_PROBE_INTERVAL_US (20 * 1000 * 1000) // 20 seconds; relatively long probe interval
 #define BBR_BTLBW_REPORT_PERIOD_US (500 * 1000)
 
 /**
@@ -91,6 +92,6 @@ void bbr_update(
     unsigned int pktsize
     );
 
-void * bitrateadaptation_thread(void *param);
+void * bitrateadaptor_thread(void *param);
 
 #endif

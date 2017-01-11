@@ -32,24 +32,24 @@
 
 #include "ga-common.h"
 #include "controller.h"
-#include "rttestimator.h"
+#include "rttserver.h"
 
 #define PORT 8556
 #define BUFSIZE 512
 
 static pthread_mutex_t rtt_mutex;
 static unsigned int rtt_store[RTT_STORE_SIZE]; // RTT values in microseconds
-static unsigned int ping_id_iterator;
+static int last_rtt_id;
 
-int rttestimator_init(in_addr ipaddr, void *p_sock, struct sockaddr_in servaddr) {
+int rttserver_init(in_addr ipaddr, void *p_sock, struct sockaddr_in servaddr) {
 	// Initialize socket
-	ga_error("rttestimator: Initializing socket\n");
+	ga_error("rttserver: Initializing socket\n");
 #ifdef _WIN32
 	WSADATA wsa;
 	SOCKET *sock = ((SOCKET *) p_sock);
 	// Initialize winsock
 	if(WSAStartup(MAKEWORD(2,2),&wsa) != 0){
-		ga_error("rttestimator: Winsock failed to initialize\n");
+		ga_error("rttserver: Winsock failed to initialize\n");
 		exit(EXIT_FAILURE);
 	}
 	// Create socket
@@ -59,16 +59,16 @@ int rttestimator_init(in_addr ipaddr, void *p_sock, struct sockaddr_in servaddr)
 	// Create socket
 	if((*sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0){
 #endif
-		ga_error("rttestimator: Failed to create socket\n");
+		ga_error("rttserver: Failed to create socket\n");
 		return -1;
 	}
 
 	// Bind socket
-	ga_error("rttestimator: Binding to socket\n");
+	ga_error("rttserver: Binding to socket\n");
 	if(bind(*sock, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0){
 		char *errmsg;
 		errmsg = strerror(errno);
-		ga_error("rttestimator: Failed to bind - %s\n", errmsg);
+		ga_error("rttserver: Failed to bind - %s\n", errmsg);
 		return -1;
 	}
 
@@ -80,6 +80,15 @@ int rttestimator_init(in_addr ipaddr, void *p_sock, struct sockaddr_in servaddr)
 void rtt_update(unsigned int index, unsigned int rtt_val) {
 	// Write to array
 	pthread_mutex_lock(&rtt_mutex);
+	/**
+	 * Zero all stored rtt values between the last and latest.
+	 * This is in order to account for dropped and skipped packets.
+	 */
+	for (int i = (last_rtt_id + 1) % RTT_STORE_SIZE; 
+		i != index; i = (i + 1) % RTT_STORE_SIZE) {
+		rtt_store[i] = 0;
+	};
+
 	rtt_store[index] = rtt_val;
 	pthread_mutex_unlock(&rtt_mutex);
 }
@@ -88,7 +97,7 @@ void rtt_update(unsigned int index, unsigned int rtt_val) {
 // The client opens a connection with the server, and sends an RTT ctrlmsg.
 // It then listens for responses from the server.
 void *
-rttestimator_thread(void *param) {
+rttserver_thread(void *param) {
 	in_addr ipaddr = *((in_addr *) param);
 	unsigned int recvlen;
 	struct timeval end;
@@ -107,17 +116,16 @@ rttestimator_thread(void *param) {
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port = htons(PORT);
 
-	if (rttestimator_init(ipaddr, (void *) &sock, servaddr)) {
+	if (rttserver_init(ipaddr, (void *) &sock, servaddr)) {
 		return NULL;
 	}
 
 	// Send ctrlmsg to server to initiate server messages
-	ga_error("rttestimator_thread: Sending rttestimator ctrl message\n");
+	ga_error("rttserver_thread: Sending rttserver ctrl message\n");
 	ctrlmsg_t msg;
-	ctrlsys_rttestimator(&msg);
-	ctrl_client_sendmsg(&msg, sizeof(ctrlmsg_system_rttestimator_t));
+	ctrlsys_init_rttserver(&msg);
+	ctrl_client_sendmsg(&msg, sizeof(ctrlmsg_system_init_rttserver_t));
 
-	ping_id_iterator = 0;
 	// Zero rtt_store
 	for (int i = 0; i < RTT_STORE_SIZE; i++) {
 		rtt_store[i] = 0;
@@ -136,6 +144,10 @@ rttestimator_thread(void *param) {
 			char *read_head = buf;
 			bbr_rtt_t read_data;
 
+			/**
+			 * The rtt responses must be read in a strictly increasing order otherwise the update
+			 * function will zero the incorrect entries to account for skipped or lost packets.
+			 */
 			while (read_head - buf < recvlen) {
 				memcpy(&read_data, read_head, sizeof(bbr_rtt_t));
 				// Record time of value and compute RTT
@@ -143,8 +155,9 @@ rttestimator_thread(void *param) {
 				unsigned int rtt_val = (end.tv_sec - read_data.time_record.tv_sec) * 1000000.0 + 
 					end.tv_usec - read_data.time_record.tv_usec;
 				
-				// TODO: Take into account dropped packets or skipped replies.
 				rtt_update(read_data.rtt_id, rtt_val);
+				// Update previus RTT id
+				last_rtt_id = read_data.rtt_id;
 
 				read_head += sizeof(bbr_rtt_t);
 			}
@@ -174,8 +187,8 @@ unsigned int getRtprop() {
 	int rtprop_window_size = RTPROP_WINDOW_SIZE * 1000000 / PING_DELAY;
 	
 	pthread_mutex_lock(&rtt_mutex);
-	for (unsigned int i = ping_id_iterator; 
-		i != (ping_id_iterator + RTT_STORE_SIZE - rtprop_window_size) % RTT_STORE_SIZE; 
+	for (unsigned int i = last_rtt_id; 
+		i != (last_rtt_id + RTT_STORE_SIZE - rtprop_window_size) % RTT_STORE_SIZE; 
 		i = (i + RTT_STORE_SIZE - 1) % RTT_STORE_SIZE) {
 		if (rtt_store[i] != 0 && rtt_store[i] < ret) {
 			ret = rtt_store[i];
@@ -192,8 +205,8 @@ unsigned int getMaxRecent(unsigned int timeframe) {
 	int rtt_window_size = timeframe / PING_DELAY;
 	
 	pthread_mutex_lock(&rtt_mutex);
-	for (unsigned int i = ping_id_iterator; 
-		i != (ping_id_iterator + RTT_STORE_SIZE - rtt_window_size) % RTT_STORE_SIZE; 
+	for (unsigned int i = last_rtt_id; 
+		i != (last_rtt_id + RTT_STORE_SIZE - rtt_window_size) % RTT_STORE_SIZE; 
 		i = (i + RTT_STORE_SIZE - 1) % RTT_STORE_SIZE) {
 		if (rtt_store[i] > ret) {
 			ret = rtt_store[i];

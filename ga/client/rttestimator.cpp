@@ -169,6 +169,7 @@ rttestimator_thread(void *param) {
 	return NULL;
 }
 
+// Computes time delta values in microseconds.
 unsigned int getRtprop() {
 	unsigned int ret = UINT_MAX;
 	int rtprop_window_size = RTPROP_WINDOW_SIZE * 1000000 / PING_DELAY;

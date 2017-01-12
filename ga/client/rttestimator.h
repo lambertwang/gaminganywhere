@@ -21,7 +21,7 @@
 
 #define PING_DELAY 20000 // Value in microseconds
 #define RTT_STORE_SIZE 4096 // Size of RTT storing buffer
-#define RTPROP_WINDOW_SIZE 20 // Value in secondss
+#define RTPROP_WINDOW_SIZE 20 // Value in seconds
 
 #define PKTBUF 512
 #define PKTPORT 8556
@@ -31,7 +31,10 @@ typedef struct bbr_rtt_s {
 	unsigned int rtt_id;
 }	bbr_rtt_t;
 
-void * rttestimator_thread(void *param);
+// Primary thread for RTT estimation:
+// The client opens a connection with the server, and sends an RTT ctrlmsg.
+// It then listens for responses from the server.
+void * rttestimator_thread(void *param); 
 
 unsigned int getRtprop(); // Computes time delta values in microseconds.
 unsigned int getMaxRecent(unsigned int timeframe); // Get the largest RTT value recorded in the current window.

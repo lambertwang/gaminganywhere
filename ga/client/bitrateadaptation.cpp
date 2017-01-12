@@ -32,7 +32,6 @@ static unsigned int bbr_btlbw_start = 0;
 static unsigned int bbr_btlbw_head = 0;
 static unsigned int last_pkt_timestamp = 0;
 
-// Update class parameters. Maintains bbr_btlbw_record_s array
 void
 bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned int timestamp, unsigned int pktsize) {
 	// assume ssrc is always video source.
@@ -98,9 +97,8 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 	}
 }
 
-// Find the appropriate gain to apply to the bitrate (start-up / drain / steady-state / probe)
 float bbr_gain(bbr_state_t *state) {
-	float gain = GAIN_MAINTAIN; //Set gain multiplier to 1.0 (no rate change)
+	float gain = GAIN_MAINTAIN;
 	struct timeval now;
 	switch (state->stage) {
 		case WAITING:
@@ -122,7 +120,7 @@ float bbr_gain(bbr_state_t *state) {
 			}
 			state->start_1 = state->start_0;
 			state->start_0 = latest_throughput;
-		case DRAIN: //used to get rid of excess queue incurred from startup. Allows for recovery of RTT
+		case DRAIN:
 			gain = GAIN_DRAIN; // Inverse of startup state gain
 			// Lasts only one round
 			state->stage = STANDBY;
@@ -137,7 +135,7 @@ float bbr_gain(bbr_state_t *state) {
 				gettimeofday(&now, NULL);
 				if (1000000 * (now.tv_sec - state->prev_probe.tv_sec) + 
 					(now.tv_usec - state->prev_probe.tv_usec) >
-					BBR_PROBE_INTERVAL_US) { //enter probing state every 'BBR_PROBE_INTERVAL_US' seconds
+					BBR_PROBE_INTERVAL_US) {
 					ga_error("BBR: Probing bandwidth\n");
 					gain = GAIN_PROBE;
 					gettimeofday(&state->prev_probe, NULL);
@@ -148,7 +146,6 @@ float bbr_gain(bbr_state_t *state) {
 	return gain;
 }
 
-// Main thread for handling bitrate adaptation parameters and keeping them up to date
 void *
 bitrateadaptation_thread(void *param) {
 	struct timeval now, prev_ping, prev_bbr_cycle;
@@ -158,15 +155,15 @@ bitrateadaptation_thread(void *param) {
 	state.start_0 = 0;
 	state.start_1 = 0;
 	state.bitrate = 1000; // TODO: Read from a conf file
+
 	ga_error("reconfigure thread started ...\n");
 	unsigned int ping_count = 0;
 	gettimeofday(&prev_ping, NULL);
 	gettimeofday(&prev_bbr_cycle, NULL);
-	
 	while(1) {
 		gettimeofday(&now, NULL);
-		long delta = (now.tv_sec - prev_ping.tv_sec) * 1000000 + (now.tv_usec - prev_ping.tv_usec); //time since last ping
-		if (delta >= PING_DELAY) { // Update ping if it is outdated
+		long delta = (now.tv_sec - prev_ping.tv_sec) * 1000000 + (now.tv_usec - prev_ping.tv_usec);
+		if (delta >= PING_DELAY) {
 			ctrlmsg_t m_ping;
 			ctrlsys_ping(&m_ping, ping_count, now);
 			ping_count = (ping_count + 1) % RTT_STORE_SIZE;
@@ -174,9 +171,9 @@ bitrateadaptation_thread(void *param) {
 			prev_ping = now;
 		}
 
-		delta = (now.tv_sec - prev_bbr_cycle.tv_sec) * 1000000 + (now.tv_usec - prev_bbr_cycle.tv_usec); //time since last bbr cycle
-		if (delta >= BBR_CYCLE_DELAY) { // Update values used in BBR algorithm (bbr_state_t state)
-			state.rtprop = getRtprop(); // Min RTT in the RTT window
+		delta = (now.tv_sec - prev_bbr_cycle.tv_sec) * 1000000 + (now.tv_usec - prev_bbr_cycle.tv_usec);
+		if (delta >= BBR_CYCLE_DELAY) {
+			state.rtprop = getRtprop();
 			state.latest_rtt = getMaxRecent(BBR_CYCLE_DELAY);
 
 			float gain = bbr_gain(&state);

@@ -83,7 +83,6 @@ typedef struct bbr_btlbw_record_s {
 	unsigned int deliveryrate; // In bytes per sec
 } bbr_record_t;
 
-// Update class parameters. Maintains BBR BtlBw records (of type 'bbr_record_t')
 void bbr_update(
     unsigned int ssrc, 
     unsigned int seq, 
@@ -92,7 +91,6 @@ void bbr_update(
     unsigned int pktsize
     );
 
-// Main thread for handling bitrate adaptation parameters and keeping them up to date
 void * bitrateadaptation_thread(void *param);
 
 #endif

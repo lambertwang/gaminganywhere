@@ -131,6 +131,8 @@ qos_server_report(void *clientData) {
 				continue;
 			}
 			//
+
+			// TODO: Add comments here
 			pthread_mutex_lock(&m_rtt_map);
 			std::map<unsigned int, unsigned int>::iterator rtt_m;
 			if ((rtt_m = rtt_map.find(ssrc)) == rtt_map.end()) {
@@ -201,6 +203,7 @@ qos_server_schedule() {
 	return;
 }
 
+// TODO: Add comments here
 unsigned int
 qos_server_rtt(unsigned int ssrc) {
 	unsigned int ret = 0;

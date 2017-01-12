@@ -87,25 +87,6 @@ live_server_send_packet(const char *prefix, int channelId, AVPacket *pkt, int64_
 	return 0;
 }
 
-static int
-live_server_ioctl(int command, int argsize, void *arg) {
-	int ret = 0;
-	unsigned int *uarg;
-	//
-	switch(command) {
-	case GA_IOCTL_CUSTOM:
-		if (argsize == sizeof(unsigned int *) && arg != NULL) {
-			uarg = (unsigned int *) arg;
-			*uarg = qos_server_rtt(*uarg);
-		}
-		break;
-	default:
-		ret = GA_IOCTL_ERR_NOTSUPPORTED;
-		break;
-	}
-	return ret;
-}
-
 ga_module_t *
 module_load() {
 	static ga_module_t m;
@@ -118,7 +99,6 @@ module_load() {
 	m.stop = live_server_stop;
 	m.deinit = live_server_deinit;
 	m.send_packet = live_server_send_packet;
-	m.ioctl =live_server_ioctl;
 	//
 	encoder_register_sinkserver(&m);
 	//

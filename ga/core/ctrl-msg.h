@@ -98,7 +98,7 @@ struct ctrlmsg_system_reconfig_s {
 	unsigned char msgtype;		/*< must be CTRL_MSGTYPE_SYSTEM */
 	unsigned char subtype;		/*< must be CTRL_MSGSYS_SUBTYPE_RECONFIG */
 	int reconfId;				/*< ID number of the reconfigure message */
-	int crf;
+	int crf;					/*< Constant Rate Factor */
 	int framerate;
 	int bitrate;				/*< Bitrate MUST be in Kbps */
 	int width;

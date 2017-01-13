@@ -202,6 +202,7 @@ handle_netreport(ctrlmsg_system_t *msg) {
 	return;
 }
 
+// Handle a reconfig ctrlmsg to reconfigure the encoder
 void
 handle_reconfig(ctrlmsg_system_t *msg){
 	ctrlmsg_system_reconfig_t *msgn = (ctrlmsg_system_reconfig_t*) msg;
@@ -243,6 +244,7 @@ static SOCKET rtt_server_sock;
 static int rtt_server_sock;
 #endif
 
+// Initializes the network connection for the RTT Server
 void
 init_rttserver() {
 	if(!rttThreadStarted){
@@ -278,6 +280,7 @@ init_rttserver() {
 	myaddr.sin_port = htons(PKTPORT);
 }
 
+// Clean up connection and close sockets for the RTT Server
 void
 close_rttserver() {
 	if(!rttThreadStarted){
@@ -301,6 +304,7 @@ close_rttserver() {
 	return;
 }
 
+// Handles the RTT Server ctrlmsg
 void
 handle_rttserver(ctrlmsg_system_t *msg){
 	// Only start the handler once, in case multiple ctrlmsg signals are sent.
@@ -311,6 +315,7 @@ handle_rttserver(ctrlmsg_system_t *msg){
 	return;
 }
 
+// Handles ping ctrlmsg
 void
 handle_ping(ctrlmsg_system_t *msg) {
 	if(!rttThreadStarted){
@@ -324,11 +329,11 @@ handle_ping(ctrlmsg_system_t *msg) {
 	buf.time_record.tv_sec = msgn->tv_sec;
 	buf.time_record.tv_usec = msgn->tv_usec;
 
-	// Format destinatio address for packet
+	// Format destination address for packet
 	struct sockaddr_in toaddr;
 	memset((char *)&toaddr, 0, sizeof(toaddr));
 	toaddr.sin_family = AF_INET;
-	toaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	toaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); // TODO: Ensure we have correct IP
 	toaddr.sin_port = htons(PKTPORT);
 	
 	// struct RTSPConf *conf = rtspconf_global();

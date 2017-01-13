@@ -174,14 +174,19 @@ ctrlsys_netreport(ctrlmsg_t *msg, unsigned int duration,
 }
 
 /**
- * @TODO: FILL OUT/CORRECT COMMENTS
- * ctrlsys_reconfig
+ * Sends a ctrlsys_reconfig message to reconfigure the server
  * @param msg
  * 	Pointer to reconfig struct to fill in
- * @param bitrate
- *	Bitrate for reconfiguration. -1 to leave unchanged.
+ * @param crf
+ *	Constant Rate Factor
  * @param framerate
  *	Framerate for reconfiguration. -1 to leave unchanged. This value defaults to unchanged.
+ * @param bitrate
+ *	Bitrate for reconfiguration. -1 to leave unchanged.
+ * @param width
+ *	Width of the frame
+ * @param height
+ *	Height of the frame
  */
 ctrlmsg_t * 
 ctrlsys_reconfig(ctrlmsg_t *msg, 
@@ -221,10 +226,16 @@ ctrlsys_init_rttserver(ctrlmsg_t *msg) {
 }
 
 /**
- * TODO: Fill this out
+ * Handles ping ctrlmsg
  *
  * @param msg [in]	The structure to store the built message.
  *			The size of the structure must be at least \a sizeof(ctrlmsg_system_ping_t)
+ * @param ping_id
+ *	Ping identifier to determine order in the sequence
+ * @param tv_sec
+ *	Time stamp in seconds since ping was sent
+ * @param tv_usec
+ *	Time stamp in remaining microseconds since ping was sent
  */
 ctrlmsg_t *
 ctrlsys_ping(ctrlmsg_t *msg, unsigned int id, struct timeval time_record) {

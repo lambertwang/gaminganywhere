@@ -22,20 +22,21 @@
 #endif
 
 #include "ga-common.h"
+#include "ga-conf.h"
 #include "controller.h"
 #include "rttserver.h"
 #include "bitrateadaptor.h"
 
 static unsigned int latest_throughput; // Not thread safe.
-static unsigned int bbr_btlbw_start = 0;
-static unsigned int bbr_btlbw_head = 0;
-static unsigned int last_pkt_timestamp = 0;
 
 void
 bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned int timestamp, unsigned int pktsize) {
 	// assume ssrc is always video source.
 	static struct timeval last_report_sent;
 	static struct bbr_btlbw_record_s bbr_btlbw[BBR_BTLBW_MAX];
+	static unsigned int bbr_btlbw_start = 0;
+	static unsigned int bbr_btlbw_head = 0;
+	static unsigned int last_pkt_timestamp = 0;
 
 	// Same frame?
 	if(timestamp == last_pkt_timestamp) {
@@ -100,34 +101,51 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 float bbr_gain(bbr_state_t *state) {
 	float gain = GAIN_MAINTAIN;
 	struct timeval now;
+
+	// Wait for data to be streamed and for a few cycles to pass so rtt can be initialized
+	if (latest_throughput == 0) {
+		return gain;
+	}
+	state->cycles++;
+	if (state->cycles <= 6) {
+		return gain;
+	}
+
 	switch (state->stage) {
 		case WAITING:
 			state->stage = STARTUP;
 			ga_error("BBR: Entering startup state\n");
 			break;
 		case STARTUP:
-			// TODO: Startup state seems to end too quickly
-			gain = GAIN_INCREASE; // Attempt to double delivery rate
 			if (state->start_1 != 0) {
+				gain = GAIN_INCREASE; // Attempt to double delivery rate
 				// Detect plateaus: If less than 25% growth in 3 rounds, leave startup state
+				unsigned int plateau_thresh = 0;
+				if (state->gain > GAIN_MAINTAIN) {
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
-				if (min(state->start_1, state->start_0) * 5 / 4 > latest_throughput) {
+					plateau_thresh = min(state->start_1, state->start_0) * 5 / 4;
 #else
-				if (std::min(state->start_1, state->start_0) * 5 / 4 > latest_throughput) {
+					plateau_thresh = std::min(state->start_1, state->start_0) * 5 / 4;
 #endif
-					ga_error("BBR: Entering drain state\n");
-					state->stage = DRAIN;
+					if (plateau_thresh > latest_throughput || state->latest_rtt - state->rtprop > 5000) {
+						ga_error("BBR: Entering drain state\n");
+						state->stage = STANDBY;
+						gettimeofday(&state->prev_probe, NULL);
+						gain = GAIN_DRAIN;
+					}
 				}
+				ga_error("BBR: plateau_thresh: %d, throughput: %d\n", plateau_thresh, latest_throughput);
 			}
 			state->start_1 = state->start_0;
 			state->start_0 = latest_throughput;
-		case DRAIN:
-			gain = GAIN_DRAIN; // Inverse of startup state gain
-			// Lasts only one round
-			state->stage = STANDBY;
-			gettimeofday(&state->prev_probe, NULL);
-			ga_error("BBR: Entering standby state\n");
 			break;
+		// case DRAIN:
+		// 	gain = GAIN_DRAIN; // Inverse of startup state gain
+		// 	// Lasts only one round
+		// 	state->stage = STANDBY;
+		// 	gettimeofday(&state->prev_probe, NULL);
+		// 	ga_error("BBR: Entering standby state\n");
+		// 	break;
 		case STANDBY:
 			/**
 			 * TODO: Standby state should stop revert probe if the probe
@@ -138,9 +156,9 @@ float bbr_gain(bbr_state_t *state) {
 				gettimeofday(&state->prev_probe, NULL);
 			} else {
 				gettimeofday(&now, NULL);
-				if (1000000 * (now.tv_sec - state->prev_probe.tv_sec) + 
-					(now.tv_usec - state->prev_probe.tv_usec) >
-					BBR_PROBE_INTERVAL_US) {
+				int timediff = 1000000 * (now.tv_sec - state->prev_probe.tv_sec) + 
+					(now.tv_usec - state->prev_probe.tv_usec);
+				if (timediff > BBR_PROBE_INTERVAL_US) {
 					ga_error("BBR: Probing bandwidth\n");
 					gain = GAIN_PROBE;
 					gettimeofday(&state->prev_probe, NULL);
@@ -148,6 +166,7 @@ float bbr_gain(bbr_state_t *state) {
 			}
 			break;
 	}
+
 	return gain;
 }
 
@@ -159,8 +178,24 @@ bitrateadaptor_thread(void *param) {
 	state.stage = WAITING;
 	state.start_0 = 0;
 	state.start_1 = 0;
-	state.bitrate = 1000; // TODO: Read from a conf file
+	state.bitrate = ga_conf_readint("bitrate-initial");
+	if (state.bitrate <= 0) {
+		state.bitrate = BBR_BITRATE_INIT_DEFAULT;
+	}
+	state.cycles = 0;
+	
+	// Sleep until window is started
+#ifdef WIN32
+		Sleep(3000);
+#else
+		sleep(3);
+#endif
 
+	ctrlmsg_t m_reconf;
+	// Initialize encoder bitrate
+	ctrlsys_reconfig(&m_reconf, 0, 0, 0, state.bitrate, 0, 0);
+	ctrl_client_sendmsg(&m_reconf, sizeof(ctrlmsg_system_reconfig_t));
+	
 	ga_error("reconfigure thread started ...\n");
 	unsigned int ping_count = 0;
 	gettimeofday(&prev_ping, NULL);
@@ -181,20 +216,18 @@ bitrateadaptor_thread(void *param) {
 			prev_bbr_cycle = now;
 			state.rtprop = getRtprop();
 			state.latest_rtt = getMaxRecent(BBR_CYCLE_DELAY);
-			ga_error("Bitrate adaptor cycke: rtprop: %d us, latest_rtt: %d, latest_throughput: %d (some kind of units)\n",
-				state.rtprop, state.latest_rtt, latest_throughput);
 
-			float gain = bbr_gain(&state);
-			if (fabs(gain - 1.0) > 0.1) {
+			state.gain = bbr_gain(&state);
+			ga_error("BBR adaptor cycle: gain: %.2f, rtprop: %d us, rtt: %d, throughput: %d (some kind of units)\n",
+				state.gain, state.rtprop, state.latest_rtt, latest_throughput);
+			if (fabs(state.gain - 1.0) > 0.1) {
 				// ga_error("Gain factor: %f\n", gain);
-				state.bitrate *= gain;
+				state.bitrate *= state.gain;
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
 				state.bitrate = min(max(BBR_BITRATE_MINIMUM, state.bitrate), BBR_BITRATE_MAXIMUM);
 #else
 				state.bitrate = std::min(std::max(BBR_BITRATE_MINIMUM, state.bitrate), BBR_BITRATE_MAXIMUM);
 #endif
-				
-				ctrlmsg_t m_reconf;
 				ctrlsys_reconfig(&m_reconf, 0, 0, 0, state.bitrate, 0, 0);
 				ctrl_client_sendmsg(&m_reconf, sizeof(ctrlmsg_system_reconfig_t));
 			}

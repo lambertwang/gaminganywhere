@@ -827,13 +827,14 @@ main(int argc, char *argv[]) {
 			rtsperror("Cannot create bitrate adaptation thread.\n");
 			return -1;
 		}
+		pthread_detach(bitrateadaptorthread);
+
 		in_addr ipaddr = rtspconf->sin.sin_addr;
 		if(pthread_create(&rttserverthread, NULL, rttserver_thread, (void *) &ipaddr) != 0){
 			rtsperror("Cannot create RTT server thread.\n");
 			return -1;
 		}
 
-		pthread_detach(bitrateadaptorthread);
 		pthread_detach(rttserverthread);
 	}
 	//
@@ -850,9 +851,10 @@ main(int argc, char *argv[]) {
 	pthread_cancel(rtspthread);
 	if(rtspconf->ctrlenable)
 		pthread_cancel(ctrlthread);
-	if(bitrateAdaptationEnabled != 0)
+	if(bitrateAdaptationEnabled != 0) {
 		pthread_cancel(bitrateadaptorthread);
 		pthread_cancel(rttserverthread);
+	}
 	pthread_cancel(watchdog);
 #endif
 	//SDL_WaitThread(thread, &status);

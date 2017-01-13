@@ -202,6 +202,7 @@ unsigned int getRtprop() {
 // Get the largest RTT value recorded in the current window.
 unsigned int getMaxRecent(unsigned int timeframe) {
 	unsigned int ret = 0;
+	unsigned int second = 0;
 	int rtt_window_size = timeframe / PING_DELAY;
 	
 	pthread_mutex_lock(&rtt_mutex);
@@ -209,12 +210,17 @@ unsigned int getMaxRecent(unsigned int timeframe) {
 		i != (last_rtt_id + RTT_STORE_SIZE - rtt_window_size) % RTT_STORE_SIZE; 
 		i = (i + RTT_STORE_SIZE - 1) % RTT_STORE_SIZE) {
 		if (rtt_store[i] > ret) {
+			second = ret;
 			ret = rtt_store[i];
+		} else if (rtt_store[i] > second) {
+			second = rtt_store[i];
 		}
 	}
+	ga_error("Second largest rtt: %d\n", second);
 	pthread_mutex_unlock(&rtt_mutex);
 
-	return ret;
+	return second;
+	// return ret;
 }
 
 

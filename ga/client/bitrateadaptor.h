@@ -21,15 +21,16 @@
 
 // Record windowed maximum of delivery rate
 #define BBR_BTLBW_MAX 256
-#define BBR_BTLBW_WINDOW_SIZE_US (1000 * 1000)
+#define BBR_BTLBW_WINDOW_SIZE_US (2 * 1000 * 1000)
 
 // Set minimum and maximum bitrates for BBR
-#define BBR_BITRATE_MINIMUM 50
+#define BBR_BITRATE_MINIMUM 200
 #define BBR_BITRATE_MAXIMUM 30000
+#define BBR_BITRATE_INIT_DEFAULT 1000
 
-#define BBR_CYCLE_DELAY 500 * 1000 // Value in microseconds
-// #define BBR_PROBE_INTERVAL_US (4 * 1000 * 1000) // 4 seconds
-#define BBR_PROBE_INTERVAL_US (20 * 1000 * 1000) // 20 seconds; relatively long probe interval
+#define BBR_CYCLE_DELAY 800 * 1000 // Value in microseconds
+// #define BBR_PROBE_INTERVAL_US (2 * 1000 * 1000) // 4 seconds
+#define BBR_PROBE_INTERVAL_US (10 * 1000 * 1000) // 10 seconds; relatively long probe interval
 #define BBR_BTLBW_REPORT_PERIOD_US (500 * 1000)
 
 /**
@@ -63,7 +64,7 @@
 enum BBR_State{
 	WAITING,
 	STARTUP,
-	DRAIN,
+	// DRAIN,
 	STANDBY
 };
 
@@ -75,6 +76,8 @@ typedef struct bbr_state_s {
 	int rtprop; // Time delta values in microseconds
 	int latest_rtt;	// Set by getMaxRecent, equal to the max RTT in the window.
 	int bitrate;	// Bitrate that the server side encoder has been set to
+	int cycles; // Number of BBR cycles which have elapsed
+	float gain; // Factor to increase bitrate by
 } bbr_state_t;
 
 typedef struct bbr_btlbw_record_s {

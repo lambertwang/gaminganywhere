@@ -333,7 +333,8 @@ handle_ping(ctrlmsg_system_t *msg) {
 	struct sockaddr_in toaddr;
 	memset((char *)&toaddr, 0, sizeof(toaddr));
 	toaddr.sin_family = AF_INET;
-	toaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); // TODO: Ensure we have correct IP
+	// toaddr.sin_addr.s_addr = inet_addr("130.215.249.129"); // TODO: Ensure we have correct IP
+	toaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	toaddr.sin_port = htons(PKTPORT);
 	
 	// struct RTSPConf *conf = rtspconf_global();

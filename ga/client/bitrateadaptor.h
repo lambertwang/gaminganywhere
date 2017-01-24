@@ -19,6 +19,9 @@
 #ifndef __BITRATEADAPTOR_H__
 #define __BITRATEADAPTOR_H__
 
+// 
+#define STORE_REPORT_VALUES
+
 // Record windowed maximum of delivery rate
 #define BBR_BTLBW_MAX 256
 #define BBR_BTLBW_WINDOW_SIZE_US (2 * 1000 * 1000)
@@ -31,7 +34,7 @@
 #define BBR_CYCLE_DELAY 800 * 1000 // Value in microseconds
 // #define BBR_PROBE_INTERVAL_US (2 * 1000 * 1000) // 4 seconds
 #define BBR_PROBE_INTERVAL_US (10 * 1000 * 1000) // 10 seconds; relatively long probe interval
-#define BBR_BTLBW_REPORT_PERIOD_US (500 * 1000)
+#define BBR_BTLBW_REPORT_PERIOD_US (500 * 1000) // 500ms report period
 
 /**
  * BBR Constants
@@ -43,7 +46,6 @@
  * BBR Congestion-Based Congestion Control. ACMQueue, 20-53. Retrieved December 13, 2016, 
  * from http://queue.acm.org/app/
  */
-// TODO: Needs to be filled in: 5/4
 #define GAIN_MAINTAIN 1.0
 #define GAIN_INCREASE 2.0
 #define GAIN_DRAIN .5
@@ -85,6 +87,9 @@ typedef struct bbr_btlbw_record_s {
 	unsigned int pktsize;
 	unsigned int timeelapsed; // Time in usec
 	unsigned int deliveryrate; // In bytes per sec
+	int rtprop; // Round-trip propagation time
+	int latest_rtt; // Most recently collected round-trip time
+	int throughput; // Only set when reporting BBR records
 } bbr_record_t;
 
 void bbr_update(

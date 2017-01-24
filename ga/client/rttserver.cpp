@@ -216,7 +216,6 @@ unsigned int getMaxRecent(unsigned int timeframe) {
 			second = rtt_store[i];
 		}
 	}
-	ga_error("Second largest rtt: %d\n", second);
 	pthread_mutex_unlock(&rtt_mutex);
 
 	return second;

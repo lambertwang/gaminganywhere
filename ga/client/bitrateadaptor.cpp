@@ -27,7 +27,8 @@
 #include "rttserver.h"
 #include "bitrateadaptor.h"
 
-static unsigned int latest_throughput; // Not thread safe.
+static struct bbr_btlbw_record_s reported_bbr_record; // Not thread safe.
+static struct bbr_state_s bbr_state;
 
 void
 bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned int timestamp, unsigned int pktsize) {
@@ -37,47 +38,72 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 	static unsigned int bbr_btlbw_start = 0;
 	static unsigned int bbr_btlbw_head = 0;
 	static unsigned int last_pkt_timestamp = 0;
+	static FILE* bbr_graph_csv = NULL;
 
 	// Same frame?
+	int prev_index = (bbr_btlbw_head + BBR_BTLBW_MAX - 1) % BBR_BTLBW_MAX;
 	if(timestamp == last_pkt_timestamp) {
-		int prev_index = (bbr_btlbw_head + BBR_BTLBW_MAX - 1) % BBR_BTLBW_MAX;
 		bbr_btlbw[prev_index].pktsize += pktsize;
 		if (bbr_btlbw[prev_index].timeelapsed == 0) {
 			bbr_btlbw[prev_index].deliveryrate = 0;
 		} else {
 			bbr_btlbw[prev_index].deliveryrate = 1000000 * pktsize / bbr_btlbw[prev_index].timeelapsed;
 		}
-
-		return;
-	}
-
-	last_pkt_timestamp = timestamp;
-
-	bbr_btlbw[bbr_btlbw_head].rcvtime = rcvtv;
-	bbr_btlbw[bbr_btlbw_head].pktsize = pktsize;
-	if (bbr_btlbw_start != bbr_btlbw_head) {
-		int prev_index = (bbr_btlbw_head + BBR_BTLBW_MAX - 1) % BBR_BTLBW_MAX;
-		bbr_btlbw[bbr_btlbw_head].timeelapsed = 
-			1000000 * (rcvtv.tv_sec - bbr_btlbw[prev_index].rcvtime.tv_sec) + 
-			rcvtv.tv_usec - bbr_btlbw[prev_index].rcvtime.tv_usec;
-		if (bbr_btlbw[bbr_btlbw_head].timeelapsed == 0) {
-			bbr_btlbw[bbr_btlbw_head].deliveryrate = 0;
-		} else {
-			bbr_btlbw[bbr_btlbw_head].deliveryrate = 1000000 * pktsize / bbr_btlbw[bbr_btlbw_head].timeelapsed;
-		}
 	} else {
-		// Should only occur on first packet received
-		bbr_btlbw[bbr_btlbw_head].timeelapsed = 0;
-		bbr_btlbw[bbr_btlbw_head].deliveryrate = 0;
-		last_report_sent = rcvtv;
+		// Output previous bbr record
+		char buffer[1024];
+
+		if (bbr_graph_csv != NULL) {
+			if (bbr_btlbw[prev_index].latest_rtt != 0) {
+				int char_written = sprintf(buffer, "%ld, %u, %u, %d, %d, %d\n", 
+					bbr_btlbw[prev_index].rcvtime.tv_sec * 1000000 + bbr_btlbw[prev_index].rcvtime.tv_usec,
+					bbr_btlbw[prev_index].pktsize,
+					bbr_btlbw[prev_index].deliveryrate,
+					bbr_btlbw[prev_index].latest_rtt,
+					bbr_btlbw[prev_index].rtprop,
+					bbr_state.bitrate);
+				fwrite(buffer, sizeof(char), char_written, bbr_graph_csv);
+			}
+		} else {
+			// Open log file
+			bbr_graph_csv = fopen("bbr_graph.csv", "w");
+			int char_written = sprintf(buffer, "rcvtime, pktsize, deliveryrate, rtt, rtprop, bitrate\n");
+			fwrite(buffer, sizeof(char), char_written, bbr_graph_csv);
+		}
+
+		// Otherwise create new frame
+		last_pkt_timestamp = timestamp;
+
+		bbr_btlbw[bbr_btlbw_head].rcvtime = rcvtv;
+		bbr_btlbw[bbr_btlbw_head].pktsize = pktsize;
+		bbr_btlbw[bbr_btlbw_head].rtprop = getRtprop();
+		bbr_btlbw[bbr_btlbw_head].latest_rtt = getMaxRecent(BBR_CYCLE_DELAY);
+
+		if (bbr_btlbw_start != bbr_btlbw_head) {
+			int prev_index = (bbr_btlbw_head + BBR_BTLBW_MAX - 1) % BBR_BTLBW_MAX;
+			bbr_btlbw[bbr_btlbw_head].timeelapsed = 
+				1000000 * (rcvtv.tv_sec - bbr_btlbw[prev_index].rcvtime.tv_sec) + 
+				rcvtv.tv_usec - bbr_btlbw[prev_index].rcvtime.tv_usec;
+			if (bbr_btlbw[bbr_btlbw_head].timeelapsed == 0) {
+				bbr_btlbw[bbr_btlbw_head].deliveryrate = 0;
+			} else {
+				bbr_btlbw[bbr_btlbw_head].deliveryrate = 1000000 * pktsize / bbr_btlbw[bbr_btlbw_head].timeelapsed;
+			}
+		} else {
+			// Should only occur on first packet received
+			bbr_btlbw[bbr_btlbw_head].timeelapsed = 0;
+			bbr_btlbw[bbr_btlbw_head].deliveryrate = 0;
+			last_report_sent = rcvtv;
+		}
+
+		bbr_btlbw_head = (bbr_btlbw_head + 1) % BBR_BTLBW_MAX;
+		if (bbr_btlbw_head == bbr_btlbw_start) {
+			bbr_btlbw_start = (bbr_btlbw_start + 1) % BBR_BTLBW_MAX;
+		}
 	}
 
-	bbr_btlbw_head = (bbr_btlbw_head + 1) % BBR_BTLBW_MAX;
-	if (bbr_btlbw_head == bbr_btlbw_start) {
-		bbr_btlbw_start = (bbr_btlbw_start + 1) % BBR_BTLBW_MAX;
-	}
 
-
+	// Update latest throughput
 	if (1000000 * (rcvtv.tv_sec - last_report_sent.tv_sec) + 
 		rcvtv.tv_usec - last_report_sent.tv_usec > BBR_BTLBW_REPORT_PERIOD_US) {
 		last_report_sent = rcvtv;
@@ -89,12 +115,18 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 			bbr_btlbw_start = (bbr_btlbw_start + 1) % BBR_BTLBW_MAX;
 		}
 
+		// Sum size of packets received to return throughput
 		unsigned int seek = bbr_btlbw_start;
-		latest_throughput = 0;
+		reported_bbr_record.throughput = 0;
 		while (seek != bbr_btlbw_head) {
-			latest_throughput += bbr_btlbw[seek].pktsize;
+			reported_bbr_record.throughput += bbr_btlbw[seek].pktsize;
 			seek = (seek + 1) % BBR_BTLBW_MAX;
 		}
+
+		// Report latest rt information received
+		prev_index = (bbr_btlbw_head + BBR_BTLBW_MAX - 1) % BBR_BTLBW_MAX;
+		reported_bbr_record.rtprop = bbr_btlbw[prev_index].pktsize;
+		reported_bbr_record.latest_rtt = bbr_btlbw[prev_index].pktsize;
 	}
 }
 
@@ -103,7 +135,7 @@ float bbr_gain(bbr_state_t *state) {
 	struct timeval now;
 
 	// Wait for data to be streamed and for a few cycles to pass so rtt can be initialized
-	if (latest_throughput == 0) {
+	if (reported_bbr_record.throughput == 0) {
 		return gain;
 	}
 	state->cycles++;
@@ -127,17 +159,17 @@ float bbr_gain(bbr_state_t *state) {
 #else
 					plateau_thresh = std::min(state->start_1, state->start_0) * 5 / 4;
 #endif
-					if (plateau_thresh > latest_throughput || state->latest_rtt - state->rtprop > 5000) {
+					if (plateau_thresh > reported_bbr_record.throughput || state->latest_rtt - state->rtprop > 5000) {
 						ga_error("BBR: Entering drain state\n");
 						state->stage = STANDBY;
 						gettimeofday(&state->prev_probe, NULL);
 						gain = GAIN_DRAIN;
 					}
 				}
-				ga_error("BBR: plateau_thresh: %d, throughput: %d\n", plateau_thresh, latest_throughput);
+				ga_error("BBR: plateau_thresh: %d, throughput: %d\n", plateau_thresh, reported_bbr_record.throughput);
 			}
 			state->start_1 = state->start_0;
-			state->start_0 = latest_throughput;
+			state->start_0 = reported_bbr_record.throughput;
 			break;
 		// case DRAIN:
 		// 	gain = GAIN_DRAIN; // Inverse of startup state gain
@@ -173,17 +205,16 @@ float bbr_gain(bbr_state_t *state) {
 void *
 bitrateadaptor_thread(void *param) {
 	struct timeval now, prev_ping, prev_bbr_cycle;
-	bbr_state_t state; 
 	// Initial values
-	state.stage = WAITING;
-	state.start_0 = 0;
-	state.start_1 = 0;
-	state.bitrate = ga_conf_readint("bitrate-initial");
-	if (state.bitrate <= 0) {
-		state.bitrate = BBR_BITRATE_INIT_DEFAULT;
+	bbr_state.stage = WAITING;
+	bbr_state.start_0 = 0;
+	bbr_state.start_1 = 0;
+	bbr_state.bitrate = ga_conf_readint("bitrate-initial");
+	if (bbr_state.bitrate <= 0) {
+		bbr_state.bitrate = BBR_BITRATE_INIT_DEFAULT;
 	}
-	state.cycles = 0;
-	
+	bbr_state.cycles = 0;
+
 	// Sleep until window is started
 #ifdef WIN32
 		Sleep(3000);
@@ -193,7 +224,7 @@ bitrateadaptor_thread(void *param) {
 
 	ctrlmsg_t m_reconf;
 	// Initialize encoder bitrate
-	ctrlsys_reconfig(&m_reconf, 0, 0, 0, state.bitrate, 0, 0);
+	ctrlsys_reconfig(&m_reconf, 0, 0, 0, bbr_state.bitrate, 0, 0);
 	ctrl_client_sendmsg(&m_reconf, sizeof(ctrlmsg_system_reconfig_t));
 	
 	ga_error("reconfigure thread started ...\n");
@@ -214,24 +245,27 @@ bitrateadaptor_thread(void *param) {
 		delta = (now.tv_sec - prev_bbr_cycle.tv_sec) * 1000000 + (now.tv_usec - prev_bbr_cycle.tv_usec);
 		if (delta >= BBR_CYCLE_DELAY) {
 			prev_bbr_cycle = now;
-			state.rtprop = getRtprop();
-			state.latest_rtt = getMaxRecent(BBR_CYCLE_DELAY);
+			// state.rtprop = getRtprop();
+			// state.latest_rtt = getMaxRecent(BBR_CYCLE_DELAY);
+			bbr_state.rtprop = reported_bbr_record.rtprop;
+			bbr_state.latest_rtt = reported_bbr_record.latest_rtt;
 
-			state.gain = bbr_gain(&state);
+			bbr_state.gain = bbr_gain(&bbr_state);
 			ga_error("BBR adaptor cycle: gain: %.2f, rtprop: %d us, rtt: %d, throughput: %d (some kind of units)\n",
-				state.gain, state.rtprop, state.latest_rtt, latest_throughput);
-			if (fabs(state.gain - 1.0) > 0.1) {
+				bbr_state.gain, bbr_state.rtprop, bbr_state.latest_rtt, reported_bbr_record.throughput);
+			if (fabs(bbr_state.gain - 1.0) > 0.1) {
 				// ga_error("Gain factor: %f\n", gain);
-				state.bitrate *= state.gain;
+				bbr_state.bitrate *= bbr_state.gain;
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
-				state.bitrate = min(max(BBR_BITRATE_MINIMUM, state.bitrate), BBR_BITRATE_MAXIMUM);
+				bbr_state.bitrate = min(max(BBR_BITRATE_MINIMUM, bbr_state.bitrate), BBR_BITRATE_MAXIMUM);
 #else
-				state.bitrate = std::min(std::max(BBR_BITRATE_MINIMUM, state.bitrate), BBR_BITRATE_MAXIMUM);
+				bbr_state.bitrate = std::min(std::max(BBR_BITRATE_MINIMUM, bbr_state.bitrate), BBR_BITRATE_MAXIMUM);
 #endif
-				ctrlsys_reconfig(&m_reconf, 0, 0, 0, state.bitrate, 0, 0);
+				ctrlsys_reconfig(&m_reconf, 0, 0, 0, bbr_state.bitrate, 0, 0);
 				ctrl_client_sendmsg(&m_reconf, sizeof(ctrlmsg_system_reconfig_t));
 			}
 		}
 	}
+
 	return NULL;
 }

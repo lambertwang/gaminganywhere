@@ -19,9 +19,9 @@
 #ifndef __rttserver_H__
 #define __rttserver_H__
 
-#define PING_DELAY 20000 // Value in microseconds
+#define PING_DELAY (20 * 1000) // Value in microseconds
 #define RTT_STORE_SIZE 4096 // Size of RTT storing buffer
-#define RTPROP_WINDOW_SIZE 20 // Value in secondss
+#define RTPROP_WINDOW_SIZE 20 // Value in seconds
 
 #define PKTBUF 512
 #define PKTPORT 8556

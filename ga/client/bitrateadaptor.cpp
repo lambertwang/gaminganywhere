@@ -16,6 +16,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+// #define BBR_GRAPH
+
 #include <stdlib.h>
 #ifndef WIN32
 #include <unistd.h>
@@ -38,38 +40,44 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 	static unsigned int bbr_btlbw_start = 0;
 	static unsigned int bbr_btlbw_head = 0;
 	static unsigned int last_pkt_timestamp = 0;
-	static FILE* bbr_graph_csv = NULL;
+
 
 	// Same frame?
 	int prev_index = (bbr_btlbw_head + BBR_BTLBW_MAX - 1) % BBR_BTLBW_MAX;
 	if(timestamp == last_pkt_timestamp) {
 		bbr_btlbw[prev_index].pktsize += pktsize;
-		if (bbr_btlbw[prev_index].timeelapsed == 0) {
-			bbr_btlbw[prev_index].deliveryrate = 0;
-		} else {
-			bbr_btlbw[prev_index].deliveryrate = 1000000 * pktsize / bbr_btlbw[prev_index].timeelapsed;
-		}
 	} else {
-		// Output previous bbr record
+		// New frame
+
+#ifdef BBR_GRAPH
+		static FILE* bbr_graph_csv = NULL;
+		static unsigned long init_time = 0;
+
+		// Write previous bbr record data to csv
 		char buffer[1024];
 
 		if (bbr_graph_csv != NULL) {
-			if (bbr_btlbw[prev_index].latest_rtt != 0) {
-				int char_written = sprintf(buffer, "%ld, %u, %u, %d, %d, %d\n", 
-					bbr_btlbw[prev_index].rcvtime.tv_sec * 1000000 + bbr_btlbw[prev_index].rcvtime.tv_usec,
-					bbr_btlbw[prev_index].pktsize,
-					bbr_btlbw[prev_index].deliveryrate,
-					bbr_btlbw[prev_index].latest_rtt,
-					bbr_btlbw[prev_index].rtprop,
+			struct bbr_btlbw_record_s prev_record = bbr_btlbw[prev_index];
+			if (prev_record.rtprop != UINT_MAX) {
+				if (init_time == 0) {
+					init_time = prev_record.rcvtime.tv_sec * 1000000 + prev_record.rcvtime.tv_usec;
+				}
+				int char_written = sprintf(buffer, "%.3f, %u, %d, %u, %u, %d\n", 
+					(float) (prev_record.rcvtime.tv_sec * 1000000 + prev_record.rcvtime.tv_usec - init_time) / 1000000.0,
+					prev_record.pktsize,
+					reported_bbr_record.throughput,
+					prev_record.latest_rtt,
+					prev_record.rtprop,
 					bbr_state.bitrate);
 				fwrite(buffer, sizeof(char), char_written, bbr_graph_csv);
 			}
 		} else {
 			// Open log file
 			bbr_graph_csv = fopen("bbr_graph.csv", "w");
-			int char_written = sprintf(buffer, "rcvtime, pktsize, deliveryrate, rtt, rtprop, bitrate\n");
+			int char_written = sprintf(buffer, "rcvtime, pktsize, throughput, rtt, rtprop, bitrate\n");
 			fwrite(buffer, sizeof(char), char_written, bbr_graph_csv);
 		}
+#endif
 
 		// Otherwise create new frame
 		last_pkt_timestamp = timestamp;
@@ -84,15 +92,9 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 			bbr_btlbw[bbr_btlbw_head].timeelapsed = 
 				1000000 * (rcvtv.tv_sec - bbr_btlbw[prev_index].rcvtime.tv_sec) + 
 				rcvtv.tv_usec - bbr_btlbw[prev_index].rcvtime.tv_usec;
-			if (bbr_btlbw[bbr_btlbw_head].timeelapsed == 0) {
-				bbr_btlbw[bbr_btlbw_head].deliveryrate = 0;
-			} else {
-				bbr_btlbw[bbr_btlbw_head].deliveryrate = 1000000 * pktsize / bbr_btlbw[bbr_btlbw_head].timeelapsed;
-			}
 		} else {
 			// Should only occur on first packet received
 			bbr_btlbw[bbr_btlbw_head].timeelapsed = 0;
-			bbr_btlbw[bbr_btlbw_head].deliveryrate = 0;
 			last_report_sent = rcvtv;
 		}
 
@@ -108,10 +110,8 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 		rcvtv.tv_usec - last_report_sent.tv_usec > BBR_BTLBW_REPORT_PERIOD_US) {
 		last_report_sent = rcvtv;
 
-		// unsigned int max_deliveryrate = 0;
-
 		while (1000000 * (rcvtv.tv_sec - bbr_btlbw[bbr_btlbw_start].rcvtime.tv_sec) + 
-			rcvtv.tv_usec - bbr_btlbw[bbr_btlbw_start].rcvtime.tv_usec > BBR_BTLBW_WINDOW_SIZE_US) {
+			rcvtv.tv_usec - bbr_btlbw[bbr_btlbw_start].rcvtime.tv_usec > BBR_CYCLE_DELAY) {
 			bbr_btlbw_start = (bbr_btlbw_start + 1) % BBR_BTLBW_MAX;
 		}
 
@@ -125,8 +125,8 @@ bbr_update(unsigned int ssrc, unsigned int seq, struct timeval rcvtv, unsigned i
 
 		// Report latest rt information received
 		prev_index = (bbr_btlbw_head + BBR_BTLBW_MAX - 1) % BBR_BTLBW_MAX;
-		reported_bbr_record.rtprop = bbr_btlbw[prev_index].pktsize;
-		reported_bbr_record.latest_rtt = bbr_btlbw[prev_index].pktsize;
+		reported_bbr_record.rtprop = bbr_btlbw[prev_index].rtprop;
+		reported_bbr_record.latest_rtt = bbr_btlbw[prev_index].latest_rtt;
 	}
 }
 
@@ -134,12 +134,8 @@ float bbr_gain(bbr_state_t *state) {
 	float gain = GAIN_MAINTAIN;
 	struct timeval now;
 
-	// Wait for data to be streamed and for a few cycles to pass so rtt can be initialized
-	if (reported_bbr_record.throughput == 0) {
-		return gain;
-	}
-	state->cycles++;
-	if (state->cycles <= 6) {
+	// RTT will be UINT_MAX while the server is uninitialized
+	if (reported_bbr_record.rtprop == UINT_MAX) {
 		return gain;
 	}
 
@@ -150,23 +146,33 @@ float bbr_gain(bbr_state_t *state) {
 			break;
 		case STARTUP:
 			if (state->start_1 != 0) {
-				gain = GAIN_INCREASE; // Attempt to double delivery rate
-				// Detect plateaus: If less than 25% growth in 3 rounds, leave startup state
-				unsigned int plateau_thresh = 0;
+				// Attempt to double delivery rate
+				gain = GAIN_INCREASE;
 				if (state->gain > GAIN_MAINTAIN) {
+					// Detect plateaus: If less than 25% growth in 3 rounds, leave startup state
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
-					plateau_thresh = min(state->start_1, state->start_0) * 5 / 4;
+					int plateau_thresh = min(state->start_1, state->start_0) * PLATEAU_GROWTH;
 #else
-					plateau_thresh = std::min(state->start_1, state->start_0) * 5 / 4;
-#endif
-					if (plateau_thresh > reported_bbr_record.throughput || state->latest_rtt - state->rtprop > 5000) {
+					int plateau_thresh = std::min(state->start_1, state->start_0) * PLATEAU_GROWTH;
+#endif	
+					// Check for plateau and bottleneck. When the rtt is 5ms greater than rtprop, a queue was created
+					if (plateau_thresh > reported_bbr_record.throughput) {
+						ga_error("BBR: Entering drain state\n");
+						state->stage = STANDBY;
+						gettimeofday(&state->prev_probe, NULL);
+						// If plateau was detected and a queue was not created, do not drain
+						if (state->latest_rtt - state->rtprop > 5000) {
+							gain = GAIN_DRAIN;
+						}
+					}
+					if (state->latest_rtt - state->rtprop > 5000) {
 						ga_error("BBR: Entering drain state\n");
 						state->stage = STANDBY;
 						gettimeofday(&state->prev_probe, NULL);
 						gain = GAIN_DRAIN;
 					}
+					ga_error("BBR: plateau_thresh: %d, throughput: %d\n", plateau_thresh, reported_bbr_record.throughput);
 				}
-				ga_error("BBR: plateau_thresh: %d, throughput: %d\n", plateau_thresh, reported_bbr_record.throughput);
 			}
 			state->start_1 = state->start_0;
 			state->start_0 = reported_bbr_record.throughput;
@@ -180,7 +186,7 @@ float bbr_gain(bbr_state_t *state) {
 		// 	break;
 		case STANDBY:
 			/**
-			 * TODO: Standby state should stop revert probe if the probe
+			 * TODO: Standby state should revert probe if the probe
 			 * results in no significant increase in latest throughput.
 			 */
 			if (state->latest_rtt - state->rtprop > 5000) { // 5ms
@@ -191,9 +197,12 @@ float bbr_gain(bbr_state_t *state) {
 				int timediff = 1000000 * (now.tv_sec - state->prev_probe.tv_sec) + 
 					(now.tv_usec - state->prev_probe.tv_usec);
 				if (timediff > BBR_PROBE_INTERVAL_US) {
-					ga_error("BBR: Probing bandwidth\n");
-					gain = GAIN_PROBE;
-					gettimeofday(&state->prev_probe, NULL);
+					// Do not probe if already at max
+					if (state->bitrate < BBR_BITRATE_MAXIMUM) {
+						ga_error("BBR: Probing bandwidth\n");
+						gain = GAIN_PROBE;
+						gettimeofday(&state->prev_probe, NULL);
+					}
 				}
 			}
 			break;
@@ -213,7 +222,6 @@ bitrateadaptor_thread(void *param) {
 	if (bbr_state.bitrate <= 0) {
 		bbr_state.bitrate = BBR_BITRATE_INIT_DEFAULT;
 	}
-	bbr_state.cycles = 0;
 
 	// Sleep until window is started
 #ifdef WIN32
@@ -245,16 +253,15 @@ bitrateadaptor_thread(void *param) {
 		delta = (now.tv_sec - prev_bbr_cycle.tv_sec) * 1000000 + (now.tv_usec - prev_bbr_cycle.tv_usec);
 		if (delta >= BBR_CYCLE_DELAY) {
 			prev_bbr_cycle = now;
-			// state.rtprop = getRtprop();
-			// state.latest_rtt = getMaxRecent(BBR_CYCLE_DELAY);
+
+			// Update state
 			bbr_state.rtprop = reported_bbr_record.rtprop;
 			bbr_state.latest_rtt = reported_bbr_record.latest_rtt;
 
 			bbr_state.gain = bbr_gain(&bbr_state);
-			ga_error("BBR adaptor cycle: gain: %.2f, rtprop: %d us, rtt: %d, throughput: %d (some kind of units)\n",
-				bbr_state.gain, bbr_state.rtprop, bbr_state.latest_rtt, reported_bbr_record.throughput);
+			ga_error("BBR cycle: gain: %.2f, rtprop: %u us, rtt: %u us, bitrate: %d MBps\n",
+				bbr_state.gain, bbr_state.rtprop, bbr_state.latest_rtt, bbr_state.bitrate);
 			if (fabs(bbr_state.gain - 1.0) > 0.1) {
-				// ga_error("Gain factor: %f\n", gain);
 				bbr_state.bitrate *= bbr_state.gain;
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
 				bbr_state.bitrate = min(max(BBR_BITRATE_MINIMUM, bbr_state.bitrate), BBR_BITRATE_MAXIMUM);

@@ -77,7 +77,7 @@ int rttserver_init(in_addr ipaddr, void *p_sock, struct sockaddr_in servaddr) {
 
 // Update the RTT array given the specified index and value.
 // Stores calculated response times returned from the UDP connection.
-void rtt_update(unsigned int index, unsigned int rtt_val) {
+void rtt_update(int index, unsigned int rtt_val) {
 	// Write to array
 	pthread_mutex_lock(&rtt_mutex);
 	/**
@@ -187,7 +187,7 @@ unsigned int getRtprop() {
 	int rtprop_window_size = RTPROP_WINDOW_SIZE * 1000000 / PING_DELAY;
 	
 	pthread_mutex_lock(&rtt_mutex);
-	for (unsigned int i = last_rtt_id; 
+	for (int i = last_rtt_id; 
 		i != (last_rtt_id + RTT_STORE_SIZE - rtprop_window_size) % RTT_STORE_SIZE; 
 		i = (i + RTT_STORE_SIZE - 1) % RTT_STORE_SIZE) {
 		if (rtt_store[i] != 0 && rtt_store[i] < ret) {
@@ -199,14 +199,14 @@ unsigned int getRtprop() {
 	return ret;
 }
 
-// Get the largest RTT value recorded in the current window.
+// Get the second largest RTT value recorded in the current window.
 unsigned int getMaxRecent(unsigned int timeframe) {
 	unsigned int ret = 0;
 	unsigned int second = 0;
 	int rtt_window_size = timeframe / PING_DELAY;
 	
 	pthread_mutex_lock(&rtt_mutex);
-	for (unsigned int i = last_rtt_id; 
+	for (int i = last_rtt_id; 
 		i != (last_rtt_id + RTT_STORE_SIZE - rtt_window_size) % RTT_STORE_SIZE; 
 		i = (i + RTT_STORE_SIZE - 1) % RTT_STORE_SIZE) {
 		if (rtt_store[i] > ret) {

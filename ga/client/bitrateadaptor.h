@@ -24,16 +24,15 @@
 
 // Record windowed maximum of delivery rate
 #define BBR_BTLBW_MAX 256
-#define BBR_BTLBW_WINDOW_SIZE_US (2 * 1000 * 1000)
 
 // Set minimum and maximum bitrates for BBR
 #define BBR_BITRATE_MINIMUM 200
 #define BBR_BITRATE_MAXIMUM 30000
 #define BBR_BITRATE_INIT_DEFAULT 1000
 
-#define BBR_CYCLE_DELAY 800 * 1000 // Value in microseconds
+#define BBR_CYCLE_DELAY (800 * 1000) // Value in microseconds
 // #define BBR_PROBE_INTERVAL_US (2 * 1000 * 1000) // 4 seconds
-#define BBR_PROBE_INTERVAL_US (10 * 1000 * 1000) // 10 seconds; relatively long probe interval
+#define BBR_PROBE_INTERVAL_US (5 * 1000 * 1000) // 5 seconds
 #define BBR_BTLBW_REPORT_PERIOD_US (500 * 1000) // 500ms report period
 
 /**
@@ -46,6 +45,7 @@
  * BBR Congestion-Based Congestion Control. ACMQueue, 20-53. Retrieved December 13, 2016, 
  * from http://queue.acm.org/app/
  */
+#define PLATEAU_GROWTH 1.25
 #define GAIN_MAINTAIN 1.0
 #define GAIN_INCREASE 2.0
 #define GAIN_DRAIN .5
@@ -75,10 +75,9 @@ typedef struct bbr_state_s {
 	unsigned int start_0;	// Previous throughput value
 	unsigned int start_1;	// Previous previous throughput value
 	struct timeval prev_probe;	// Time that the last probe took place
-	int rtprop; // Time delta values in microseconds
-	int latest_rtt;	// Set by getMaxRecent, equal to the max RTT in the window.
+	unsigned int rtprop; // Time delta values in microseconds
+	unsigned int latest_rtt;	// Set by getMaxRecent, equal to the max RTT in the window.
 	int bitrate;	// Bitrate that the server side encoder has been set to
-	int cycles; // Number of BBR cycles which have elapsed
 	float gain; // Factor to increase bitrate by
 } bbr_state_t;
 
@@ -86,9 +85,8 @@ typedef struct bbr_btlbw_record_s {
 	struct timeval rcvtime;
 	unsigned int pktsize;
 	unsigned int timeelapsed; // Time in usec
-	unsigned int deliveryrate; // In bytes per sec
-	int rtprop; // Round-trip propagation time
-	int latest_rtt; // Most recently collected round-trip time
+	unsigned int rtprop; // Round-trip propagation time
+	unsigned int latest_rtt; // Most recently collected round-trip time
 	int throughput; // Only set when reporting BBR records
 } bbr_record_t;
 

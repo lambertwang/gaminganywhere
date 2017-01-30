@@ -38,6 +38,7 @@ unsigned increaseReceiveBufferTo(UsageEnvironment& env,
 #include "controller.h"
 #include "minih264.h"
 #include "qosreport.h"
+#include "bitrateadaptor.h"
 #ifdef ANDROID
 #include "android-decoders.h"
 #endif
@@ -671,6 +672,7 @@ rtp_packet_handler(void *clientData, unsigned char *packet, unsigned &packetSize
 	}
 	//
 	bandwidth_estimator_update(ssrc, seqnum, tv, timestamp, packetSize);
+	bbr_update(ssrc, seqnum, tv, timestamp, packetSize);
 	pktloss_monitor_update(ssrc, seqnum);
 	//
 	return;

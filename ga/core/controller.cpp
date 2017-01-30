@@ -44,7 +44,7 @@ static int ctrlsocket = -1;
 static struct sockaddr_in ctrlsin;
 // message queue
 static pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int qhead, qtail, qsize, qunit;
+static unsigned int qhead, qtail, qsize, qunit;
 static unsigned char *qbuffer = NULL;
 
 static msgfunc replay = NULL;
@@ -194,7 +194,13 @@ ctrl_socket_init(struct RTSPConf *conf) {
 		return -1;
 	}
 	if(ctrlsocket < 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+		char errmsg[ERR_MSG_LEN]; 
+		strerror_s(errmsg, ERR_MSG_LEN, errno);
+		ga_error("Controller socket-init: %s\n", errmsg);
+#else
 		ga_error("Controller socket-init: %s\n", strerror(errno));
+#endif
 	}
 	//
 	bzero(&ctrlsin, sizeof(struct sockaddr_in));
@@ -225,7 +231,13 @@ ctrl_client_init(struct RTSPConf *conf, const char *ctrlid) {
 		struct ctrlhandshake hh;
 		// connect to the server
 		if(connect(ctrlsocket, (struct sockaddr*) &ctrlsin, sizeof(ctrlsin)) < 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+			char errmsg[ERR_MSG_LEN]; 
+			strerror_s(errmsg, ERR_MSG_LEN, errno);
+			ga_error("controller client-connect: %s\n", errmsg);
+#else
 			ga_error("controller client-connect: %s\n", strerror(errno));
+#endif
 			goto error;
 		}
 		// send handshake
@@ -234,7 +246,13 @@ ctrl_client_init(struct RTSPConf *conf, const char *ctrlid) {
 			hh.length = sizeof(hh);
 		strncpy(hh.id, ctrlid, sizeof(hh.id));
 		if(send(ctrlsocket, (char*) &hh, hh.length, 0) <= 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+			char errmsg[ERR_MSG_LEN]; 
+			strerror_s(errmsg, ERR_MSG_LEN, errno);
+			ga_error("controller client-send(handshake): %s\n", errmsg);
+#else
 			ga_error("controller client-send(handshake): %s\n", strerror(errno));
+#endif
 			goto error;
 		}
 	}
@@ -280,7 +298,13 @@ ctrl_client_thread(void *rtspconf) {
 #endif
 			if(conf->ctrlproto == IPPROTO_TCP) {
 				if((wlen = send(ctrlsocket, (char*) qm->msg, qm->msgsize, 0)) < 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+					char errmsg[ERR_MSG_LEN]; 
+					strerror_s(errmsg, ERR_MSG_LEN, errno);
+					ga_error("controller client-send(tcp): %s\n", errmsg);
+#else
 					ga_error("controller client-send(tcp): %s\n", strerror(errno));
+#endif
 #ifdef ANDROID
 					drop = 1;
 #else
@@ -289,7 +313,13 @@ ctrl_client_thread(void *rtspconf) {
 				}
 			} else if(conf->ctrlproto == IPPROTO_UDP) {
 				if((wlen = sendto(ctrlsocket, (char*) qm->msg, qm->msgsize, 0, (struct sockaddr*) &ctrlsin, sizeof(ctrlsin))) < 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+					char errmsg[ERR_MSG_LEN]; 
+					strerror_s(errmsg, ERR_MSG_LEN, errno);
+					ga_error("controller client-send(udp): %s\n", errmsg);
+#else
 					ga_error("controller client-send(udp): %s\n", strerror(errno));
+#endif
 #ifdef ANDROID
 					drop = 1;
 #else
@@ -335,19 +365,37 @@ ctrl_server_init(struct RTSPConf *conf, const char *ctrlid) {
 	do {
 		int val = 1;
 		if(setsockopt(ctrlsocket, SOL_SOCKET, SO_REUSEADDR, (char*) &val, sizeof(val)) < 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+			char errmsg[ERR_MSG_LEN]; 
+			strerror_s(errmsg, ERR_MSG_LEN, errno);
+			ga_error("controller server-bind: %s\n", errmsg);
+#else
 			ga_error("controller server-bind: %s\n", strerror(errno));
+#endif
 			goto error;
 		}
 	} while(0);
 	// bind for either TCP of UDP
 	if(bind(ctrlsocket, (struct sockaddr*) &ctrlsin, sizeof(ctrlsin)) < 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+		char errmsg[ERR_MSG_LEN]; 
+		strerror_s(errmsg, ERR_MSG_LEN, errno);
+		ga_error("controller server-bind: %s\n", errmsg);
+#else
 		ga_error("controller server-bind: %s\n", strerror(errno));
+#endif
 		goto error;
 	}
 	// TCP listen
 	if(conf->ctrlproto == IPPROTO_TCP) {
 		if(listen(ctrlsocket, 16) < 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+			char errmsg[ERR_MSG_LEN]; 
+			strerror_s(errmsg, ERR_MSG_LEN, errno);
+			ga_error("controller server-listen: %s\n", errmsg);
+#else
 			ga_error("controller server-listen: %s\n", strerror(errno));
+#endif
 			goto error;
 		}
 	}
@@ -397,14 +445,26 @@ restart:
 		struct ctrlhandshake *hh = (struct ctrlhandshake*) buf;
 		//
 		if((socket = accept(ctrlsocket, (struct sockaddr*) &csin, &csinlen)) < 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+			char errmsg[ERR_MSG_LEN]; 
+			strerror_s(errmsg, ERR_MSG_LEN, errno);
+			ga_error("controller server-accept: %s.\n", errmsg);
+#else
 			ga_error("controller server-accept: %s.\n", strerror(errno));
+#endif
 			goto restart;
 		}
 		ga_error("controller server-thread: accepted TCP client from %s.%d\n",
 			inet_ntoa(csin.sin_addr), ntohs(csin.sin_port));
 		// check initial handshake message
 		if((buflen = recv(socket, (char*) buf, sizeof(buf), 0)) <= 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+			char errmsg[ERR_MSG_LEN]; 
+			strerror_s(errmsg, ERR_MSG_LEN, errno);
+			ga_error("controller server-thread: %s\n", errmsg);
+#else
 			ga_error("controller server-thread: %s\n", strerror(errno));
+#endif
 			close(socket);
 			goto restart;
 		}
@@ -434,7 +494,13 @@ restart:
 		if(conf->ctrlproto == IPPROTO_TCP) {
 tcp_readmore:
 			if((rlen = recv(socket, (char*) buf+buflen, sizeof(buf)-buflen, 0)) <= 0) {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+				char errmsg[ERR_MSG_LEN]; 
+				strerror_s(errmsg, ERR_MSG_LEN, errno);
+				ga_error("controller server-read: %s\n", errmsg);
+#else
 				ga_error("controller server-read: %s\n", strerror(errno));
+#endif
 				ga_error("controller server-thread: conenction closed.\n");
 				close(socket);
 				goto restart;

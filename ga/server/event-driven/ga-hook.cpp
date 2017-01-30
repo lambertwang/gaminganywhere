@@ -100,9 +100,17 @@ hook_sdl12(const char *hook_type, const char *hook_method) {
 	char real_sdlpath[256];
 	const char *sdlpath = NULL;
 	const char def_sdlpath[] = "SDL.dll";
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+	size_t requiredsize;
+	getenv_s(&requiredsize, NULL, 0, "LIBSDL_SO");
+	if (requiredsize != 0) {
+		getenv_s(&requiredsize, real_sdlpath, 256, "LIBSDL_SO");
+		sdlpath = real_sdlpath;
+#else
 	if(getenv("LIBSDL_SO") != NULL) {
 		strncpy(real_sdlpath, getenv("LIBSDL_SO"), sizeof(real_sdlpath));
 		sdlpath = real_sdlpath;
+#endif
 	} else if(ga_conf_readv("hook-sdl-path", real_sdlpath, sizeof(real_sdlpath)) != NULL) {
 		sdlpath = real_sdlpath;
 	} else {
@@ -178,9 +186,17 @@ hook_sdl2(const char *hook_type, const char *hook_method) {
 	char real_sdlpath[256];
 	const char *sdlpath = NULL;
 	const char def_sdlpath[] = "SDL.dll";
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+	size_t requiredsize;
+	getenv_s(&requiredsize, NULL, 0, "LIBSDL_SO");
+	if (requiredsize != 0) {
+		getenv_s(&requiredsize, real_sdlpath, 256, "LIBSDL_SO");
+		sdlpath = real_sdlpath;
+#else
 	if(getenv("LIBSDL_SO") != NULL) {
 		strncpy(real_sdlpath, getenv("LIBSDL_SO"), sizeof(real_sdlpath));
 		sdlpath = real_sdlpath;
+#endif
 	} else if(ga_conf_readv("hook-sdl-path", real_sdlpath, sizeof(real_sdlpath)) != NULL) {
 		sdlpath = real_sdlpath;
 	} else {

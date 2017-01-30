@@ -29,9 +29,6 @@
 
 #include "dpipe.h"
 
-//// Prevent use of GLOBAL_HEADER to pass parameters, disabled by default
-//#define STANDALONE_SDP	1
-
 static struct RTSPConf *rtspconf = NULL;
 
 static int vencoder_initialized = 0;
@@ -165,6 +162,11 @@ vencoder_reconfigure(int iid) {
 	int ret = 0;
 	ga_ioctl_reconfigure_t *reconf = &vencoder_reconf[iid];
 	pthread_mutex_lock(&vencoder_reconf_mutex[iid]);
+#ifdef TIMING_TESTS
+	struct timeval time_start;
+	struct timeval time_end;
+	gettimeofday(&time_start, NULL);
+#endif
 	if(reconf->id >= 0) {
 		ga_error("video encoder: Reconfiguring video encoder\n");
 		int outputW, outputH;
@@ -175,7 +177,7 @@ vencoder_reconfigure(int iid) {
 		// ga_error("Closing encoder context\n");
 		// avcodec_close(vencoder[iid]);
 
-		for (int i = 0; i < rtspconf->vso->size(); i += 2) {
+		for (unsigned int i = 0; i < rtspconf->vso->size(); i += 2) {
 			if ((*rtspconf->vso)[i].compare("b") == 0) {
 				if (reconf->bitrateKbps > 0)
 					(*rtspconf->vso)[i+1] = std::to_string(static_cast<long long> (reconf->bitrateKbps * 1000));
@@ -210,6 +212,11 @@ vencoder_reconfigure(int iid) {
 			ret = -1;
 		}
 		reconf->id = -1;
+
+#ifdef TIMING_TESTS
+		gettimeofday(&time_end, NULL);
+		ga_log("Time elapsed to reconfigure encoder: %d usec\n", (time_end.tv_sec - time_start.tv_sec) * 1000000 + (time_end.tv_usec - time_start.tv_usec));
+#endif
 	}
 	pthread_mutex_unlock(&vencoder_reconf_mutex[iid]);
 	return ret;
@@ -279,20 +286,28 @@ vencoder_threadproc(void *arg) {
 		outputW, outputH, rtspconf->video_fps,
 		nalbuf_size, pic_in_size);
 	//
+#ifdef TIMING_TESTS
+	struct timeval time_current;
+	gettimeofday(&time_current, NULL);
+#endif
 	while(vencoder_started != 0 && encoder_running() > 0) {
-		// Reconfigure encoder (if required)
-		vencoder_reconfigure(iid);
 		AVPacket pkt;
 		int got_packet = 0;
 		// wait for notification
 		struct timeval tv;
 		struct timespec to;
 		gettimeofday(&tv, NULL);
+#ifdef TIMING_TESTS
+		ga_log("Frame time elapsed: %d usec\n", (tv.tv_sec - time_current.tv_sec) * 1000000 + (tv.tv_usec - time_current.tv_usec));
+		time_current = tv;
+#endif
 		to.tv_sec = tv.tv_sec+1;
 		to.tv_nsec = tv.tv_usec * 1000;
+		// Reconfigure encoder (if required)
+		vencoder_reconfigure(iid);
 		data = dpipe_load(pipe, &to);
 		if(data == NULL) {
-			ga_error("viedo encoder: image source timed out.\n");
+			ga_error("video encoder: image source timed out.\n");
 			continue;
 		}
 		frame = (vsource_frame_t*) data->pointer;

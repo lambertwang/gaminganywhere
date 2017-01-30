@@ -20,7 +20,7 @@ all: $(TARGET)
 .cpp.o:
 	$(CXX) -c -g $(CFLAGS) $<
 
-ga-client: ga-client.o rtspclient.o ctrl-sdl.o minih264.o minivp8.o qosreport.o
+ga-client: ga-client.o rtspclient.o ctrl-sdl.o minih264.o minivp8.o qosreport.o bitrateadaptor.o rttserver.o
 	$(CXX) -o $@ $^ $(LDFLAGS)
 
 install: $(TARGET)

@@ -32,7 +32,10 @@
 static ctrlsys_handler_t ctrlsys_handler_list[] = {
 	NULL,	/* 0 = CTRL_MSGSYS_SUBTYPE_NULL */
 	NULL,	/* 1 = CTRL_MSGSYS_SUBTYPE_SHUTDOWN */
-	NULL	/* 2 = CTRL_MSGSYS_SUBTYPE_NETREPORT */
+	NULL,	/* 2 = CTRL_MSGSYS_SUBTYPE_NETREPORT */
+	NULL,	/* 3 = CTRL_MSGSYS_SUBTYPE_RECONFIG */
+	NULL,	/* 4 = CTRL_MSGSYS_SUBTYPE_INIT_RTTSERVER */
+	NULL	/* 5 = CTRL_MSGSYS_SUBTYPE_PING */
 };
 
 ctrlsys_handler_t
@@ -58,6 +61,9 @@ ctrlsys_set_handler(unsigned char subtype, ctrlsys_handler_t handler) {
 static int 
 ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 	ctrlmsg_system_netreport_t *netreport;
+	ctrlmsg_system_reconfig_t *reconf;
+	ctrlmsg_system_init_rttserver_t *init_rttserver;
+	ctrlmsg_system_ping_t *ping;
 	msg->msgsize = ntohs(msg->msgsize);
 	switch(msg->subtype) {
 	/* no conversion needed, and no size checking */
@@ -74,6 +80,33 @@ ctrlsys_ntoh(ctrlmsg_system_t *msg) {
 		netreport->pktloss  = htonl(netreport->pktloss);
 		netreport->bytecount = htonl(netreport->bytecount);
 		netreport->capacity = htonl(netreport->capacity);
+		break;
+	case CTRL_MSGSYS_SUBTYPE_RECONFIG:
+		if(msg->msgsize != sizeof(ctrlmsg_system_reconfig_t))
+			return -1;
+		reconf = (ctrlmsg_system_reconfig_t*) msg;
+		reconf->reconfId = htonl(reconf->reconfId);
+		reconf->crf = htonl(reconf->crf);
+		reconf->framerate = htonl(reconf->framerate);
+		reconf->bitrate = htonl(reconf->bitrate);
+		reconf->width = htonl(reconf->width);
+		reconf->height = htonl(reconf->height);
+		break;
+	case CTRL_MSGSYS_SUBTYPE_INIT_RTTSERVER:
+		if(msg->msgsize != sizeof(ctrlmsg_system_init_rttserver_t))
+			return -1;
+		init_rttserver = (ctrlmsg_system_init_rttserver_t*) msg;
+		// init_rttserver->sin_family = htons(sin_family);
+		// init_rttserver->sin_port = htons(sin_port);
+		// init_rttserver->s_addr = htonl(s_addr);
+		break;
+	case CTRL_MSGSYS_SUBTYPE_PING:
+		if(msg->msgsize != sizeof(ctrlmsg_system_ping_t))
+			return -1;
+		ping = (ctrlmsg_system_ping_t*) msg;
+		ping->ping_id = htonl(ping->ping_id);
+		ping->tv_sec = htonl(ping->tv_sec);
+		ping->tv_usec = htonl(ping->tv_usec);
 		break;
 	default:
 		return -1;
@@ -140,3 +173,79 @@ ctrlsys_netreport(ctrlmsg_t *msg, unsigned int duration,
 	return msg;
 }
 
+/**
+ * Sends a ctrlsys_reconfig message to reconfigure the server
+ * @param msg
+ * 	Pointer to reconfig struct to fill in
+ * @param crf
+ *	Constant Rate Factor
+ * @param framerate
+ *	Framerate for reconfiguration. -1 to leave unchanged. This value defaults to unchanged.
+ * @param bitrate
+ *	Bitrate for reconfiguration. -1 to leave unchanged.
+ * @param width
+ *	Width of the frame
+ * @param height
+ *	Height of the frame
+ */
+ctrlmsg_t * 
+ctrlsys_reconfig(ctrlmsg_t *msg, 
+		int reconfId, int crf, int framerate, 
+		int bitrate, int width, int height) {
+	ctrlmsg_system_reconfig_t *msgn = (ctrlmsg_system_reconfig_t*) msg;
+	bzero(msg, sizeof(ctrlmsg_system_reconfig_t));
+	msgn->msgsize = htons(sizeof(ctrlmsg_system_reconfig_t));
+	msgn->msgtype = CTRL_MSGTYPE_SYSTEM;
+	msgn->subtype = CTRL_MSGSYS_SUBTYPE_RECONFIG;
+	msgn->crf = htonl(crf);
+	msgn->framerate = htonl(framerate);
+	msgn->bitrate = htonl(bitrate);
+	msgn->width = htonl(width);
+	msgn->height = htonl(height);
+	return msg;
+}
+
+/**
+ * Send a signal to the server to start the UDP ping handler
+ *
+ * @param msg [in]	The structure to store the built message.
+ *			The size of the structure must be at least \a sizeof(ctrlmsg_system_init_rttserver_t)
+ */
+ctrlmsg_t *
+//  ctrlsys_init_rttserver(ctrlmsg_t *msg, short sin_family, unsigned short sin_port, unsigned long s_addr) {
+ctrlsys_init_rttserver(ctrlmsg_t *msg) {
+	ctrlmsg_system_init_rttserver_t *msgn = (ctrlmsg_system_init_rttserver_t*) msg;
+	bzero(msg, sizeof(ctrlmsg_system_init_rttserver_t));
+	msgn->msgsize = htons(sizeof(ctrlmsg_system_init_rttserver_t));
+	msgn->msgtype = CTRL_MSGTYPE_SYSTEM;
+	msgn->subtype = CTRL_MSGSYS_SUBTYPE_INIT_RTTSERVER;
+	// msgn->sin_family = htons(sin_family);
+	// msgn->sin_port = htons(sin_port);
+	// msgn->s_addr = htonl(s_addr);
+	return msg;
+}
+
+/**
+ * Handles ping ctrlmsg
+ *
+ * @param msg [in]	The structure to store the built message.
+ *			The size of the structure must be at least \a sizeof(ctrlmsg_system_ping_t)
+ * @param ping_id
+ *	Ping identifier to determine order in the sequence
+ * @param tv_sec
+ *	Time stamp in seconds since ping was sent
+ * @param tv_usec
+ *	Time stamp in remaining microseconds since ping was sent
+ */
+ctrlmsg_t *
+ctrlsys_ping(ctrlmsg_t *msg, unsigned int id, struct timeval time_record) {
+	ctrlmsg_system_ping_t *msgn = (ctrlmsg_system_ping_t*) msg;
+	bzero(msg, sizeof(ctrlmsg_system_ping_t));
+	msgn->msgsize = htons(sizeof(ctrlmsg_system_ping_t));
+	msgn->msgtype = CTRL_MSGTYPE_SYSTEM;
+	msgn->subtype = CTRL_MSGSYS_SUBTYPE_PING;
+	msgn->ping_id = htonl(id);
+	msgn->tv_sec = htonl(time_record.tv_sec);
+	msgn->tv_usec = htonl(time_record.tv_usec);
+	return msg;
+}

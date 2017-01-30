@@ -81,7 +81,9 @@ crc5_update(crc5_t crc, const unsigned char *data, int data_len, const crc5_t *t
 	unsigned int tbl_idx;
 	while (data_len--) {
 		tbl_idx = ((crc >> 3) ^ *data) & 0xff;
-		crc = (table[tbl_idx] ^ (crc >> 8)) & (0x1f << 3);
+		// crc = (table[tbl_idx] ^ (crc >> 8)) & (0x1f << 3);
+        // (crc >> 8) will always be 0 due to size of unsigned char
+		crc = table[tbl_idx] & (0x1f << 3);
 		data++;
 	}
 	return crc & (0x1f << 3);

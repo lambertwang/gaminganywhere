@@ -39,6 +39,8 @@ typedef struct qos_server_record_s {
 void * liveserver_taskscheduler();
 void * liveserver_main(void *arg);
 
+unsigned int qos_server_rtt(unsigned int ssrc); // Returns the average rtt time a specific sync source
+
 int qos_server_start();
 int qos_server_stop();
 int qos_server_add_sink(const char *prefix, RTPSink *rtpsink);

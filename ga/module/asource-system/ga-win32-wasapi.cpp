@@ -177,7 +177,7 @@ ga_wasapi_read(ga_wasapi_param *wasapi, unsigned char *wbuf, int wframes) {
 	UINT64 framePos;
 	int srcunit = wasapi->bits_per_sample / 8;
 	int dstunit = audio_source_bitspersample() / 8;
-	struct timeval beforeSleep, afterSleep;
+	struct timeval afterSleep;
 	bool filldata = false;
 	// frame statistics 
 	struct timeval currtv;

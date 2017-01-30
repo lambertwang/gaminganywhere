@@ -140,8 +140,13 @@ ga_conf_parse(const char *filename, int lineno, char *buf) {
 		if(token[0] == '/' || token[0] == '\\' || token[1] == ':') {
 			strncpy(incfile, token, sizeof(incfile));
 		} else {
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+			_splitpath_s(filename, drive, _MAX_DRIVE, tmpdn, _MAX_DIR, tmpfn, _MAX_FNAME, NULL, 0);
+			_makepath_s(incfile, _MAX_PATH, drive, tmpdn, token, NULL);
+#else
 			_splitpath(filename, drive, tmpdn, tmpfn, NULL);
 			_makepath(incfile, drive, tmpdn, token, NULL);
+#endif
 		}
 		// replace '/' with '\\'
 		while(*ptr) {
@@ -216,7 +221,11 @@ ga_conf_load(const char *filename) {
 	//
 	if(filename == NULL)
 		return -1;
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+	if(fopen_s(&fp, filename, "rt") != 0) {
+#else
 	if((fp = fopen(filename, "rt")) == NULL) {
+#endif
 		return -1;
 	}
 	while(fgets(buf, sizeof(buf), fp) != NULL) {

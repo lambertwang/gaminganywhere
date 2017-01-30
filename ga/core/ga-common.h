@@ -63,6 +63,10 @@ extern "C" {
 /** Unit size size for RGBA pixels, in bytes */
 #define	RGBA_SIZE	4
 
+/** Buffer size for safe string operations. size = 94 char str + 1*/
+/** This size is defined by the MSDN documentation for _strerror_s*/
+#define ERR_MSG_LEN 95
+
 struct gaRect {
 	int left, top;
 	int right, bottom;

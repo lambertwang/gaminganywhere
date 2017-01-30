@@ -47,6 +47,8 @@ extern "C" {
 
 #include "controller.h"
 #include "ctrl-sdl.h"
+#include "bitrateadaptor.h"
+#include "rttserver.h"
 
 #include "ga-common.h"
 #include "ga-conf.h"
@@ -697,7 +699,10 @@ main(int argc, char *argv[]) {
 	pthread_t rtspthread;
 	pthread_t ctrlthread;
 	pthread_t watchdog;
+	pthread_t bitrateadaptorthread;
+	pthread_t rttserverthread;
 	char savefile_keyts[128];
+	static int bitrateAdaptationEnabled = 0;
 	//
 #ifdef ANDROID
 	if(ga_init("/sdcard/ga/android.conf", NULL) < 0) {
@@ -721,6 +726,11 @@ main(int argc, char *argv[]) {
 	if(ga_conf_readbool("control-relative-mouse-mode", 0) != 0) {
 		rtsperror("*** Relative mouse mode enabled.\n");
 		relativeMouseMode = 1;
+	}
+	// Check to see if bitrate-adaptation is set in the config file
+	if(ga_conf_readbool("bitrate-adaptation", 0) != 0){
+		rtsperror("*** Bitrate adaptation prototype enabled\n");
+		bitrateAdaptationEnabled = 1;
 	}
 	//
 	if(ga_conf_readv("save-key-timestamp", savefile_keyts, sizeof(savefile_keyts)) != NULL) {
@@ -810,6 +820,23 @@ main(int argc, char *argv[]) {
 		return -1;
 	}
 	pthread_detach(rtspthread);
+	// If bitrate adaptation was enabled in the config, start the bitrate adaptation thread,
+	// as well as the RTT server.
+	if(bitrateAdaptationEnabled != 0){
+		if(pthread_create(&bitrateadaptorthread, NULL, bitrateadaptor_thread, NULL) != 0){
+			rtsperror("Cannot create bitrate adaptation thread.\n");
+			return -1;
+		}
+		pthread_detach(bitrateadaptorthread);
+
+		in_addr ipaddr = rtspconf->sin.sin_addr;
+		if(pthread_create(&rttserverthread, NULL, rttserver_thread, (void *) &ipaddr) != 0){
+			rtsperror("Cannot create RTT server thread.\n");
+			return -1;
+		}
+
+		pthread_detach(rttserverthread);
+	}
 	//
 	while(rtspThreadParam.running) {
 		if(SDL_WaitEvent(&event)) {
@@ -824,6 +851,10 @@ main(int argc, char *argv[]) {
 	pthread_cancel(rtspthread);
 	if(rtspconf->ctrlenable)
 		pthread_cancel(ctrlthread);
+	if(bitrateAdaptationEnabled != 0) {
+		pthread_cancel(bitrateadaptorthread);
+		pthread_cancel(rttserverthread);
+	}
 	pthread_cancel(watchdog);
 #endif
 	//SDL_WaitThread(thread, &status);

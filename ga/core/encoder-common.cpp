@@ -379,13 +379,13 @@ encoder_ptv_get(unsigned queueid, long long pts, struct timeval *ptv, int interp
 			delta_ts = pts_queue[queueid].front().pts - pts;
 			delta_tv = (long long) (1.0 * delta_ts / interpolation);
 			*ptv = pts_queue[queueid].front().ptv;
-			ptv->tv_sec -= (delta_tv / 1000000LL);
+			ptv->tv_sec -= (long) (delta_tv / 1000000LL);
 			delta_tv %= 1000000LL;
 			if(ptv->tv_usec < delta_tv) {
 				ptv->tv_sec--;
-				ptv->tv_usec += 1000000LL;
+				ptv->tv_usec += (long) 1000000LL;
 			}
-			ptv->tv_usec -= delta_tv;
+			ptv->tv_usec -= (long) delta_tv;
 			return ptv;
 		}
 		break;

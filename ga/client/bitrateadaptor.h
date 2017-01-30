@@ -19,9 +19,6 @@
 #ifndef __BITRATEADAPTOR_H__
 #define __BITRATEADAPTOR_H__
 
-// 
-#define STORE_REPORT_VALUES
-
 // Record windowed maximum of delivery rate
 #define BBR_BTLBW_MAX 256
 
@@ -30,9 +27,9 @@
 #define BBR_BITRATE_MAXIMUM 30000
 #define BBR_BITRATE_INIT_DEFAULT 1000
 
-#define BBR_CYCLE_DELAY (800 * 1000) // Value in microseconds
+#define BBR_CYCLE_DELAY (500 * 1000) // Value in microseconds
 // #define BBR_PROBE_INTERVAL_US (2 * 1000 * 1000) // 4 seconds
-#define BBR_PROBE_INTERVAL_US (5 * 1000 * 1000) // 5 seconds
+#define BBR_PROBE_INTERVAL_US (4 * 1000 * 1000) // 5 seconds
 #define BBR_BTLBW_REPORT_PERIOD_US (500 * 1000) // 500ms report period
 
 /**
@@ -66,7 +63,6 @@
 enum BBR_State{
 	WAITING,
 	STARTUP,
-	// DRAIN,
 	STANDBY
 };
 

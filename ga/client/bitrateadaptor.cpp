@@ -16,7 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-// #define BBR_GRAPH
+#define BBR_GRAPH
 
 #include <stdlib.h>
 #ifndef WIN32
@@ -156,19 +156,17 @@ float bbr_gain(bbr_state_t *state) {
 					int plateau_thresh = std::min(state->start_1, state->start_0) * PLATEAU_GROWTH;
 #endif	
 					// Check for plateau and bottleneck. When the rtt is 5ms greater than rtprop, a queue was created
-					if (plateau_thresh > reported_bbr_record.throughput) {
-						ga_error("BBR: Entering drain state\n");
+					// Also leave startup rate if bitrate has reached maximum
+					if (plateau_thresh > reported_bbr_record.throughput ||
+						state->latest_rtt - state->rtprop > 5000 ||
+						state->bitrate == BBR_BITRATE_MAXIMUM) {
+						ga_error("BBR: Plateau detected, leaving startup state.\n");
 						state->stage = STANDBY;
 						gettimeofday(&state->prev_probe, NULL);
-						// If plateau was detected and a queue was not created, do not drain
-						if (state->latest_rtt - state->rtprop > 5000) {
-							gain = GAIN_DRAIN;
-						}
 					}
+					// Only drain if a queue was detected created
 					if (state->latest_rtt - state->rtprop > 5000) {
-						ga_error("BBR: Entering drain state\n");
-						state->stage = STANDBY;
-						gettimeofday(&state->prev_probe, NULL);
+						ga_error("BBR: Beginning startup drain\n");
 						gain = GAIN_DRAIN;
 					}
 					ga_error("BBR: plateau_thresh: %d, throughput: %d\n", plateau_thresh, reported_bbr_record.throughput);
@@ -177,18 +175,12 @@ float bbr_gain(bbr_state_t *state) {
 			state->start_1 = state->start_0;
 			state->start_0 = reported_bbr_record.throughput;
 			break;
-		// case DRAIN:
-		// 	gain = GAIN_DRAIN; // Inverse of startup state gain
-		// 	// Lasts only one round
-		// 	state->stage = STANDBY;
-		// 	gettimeofday(&state->prev_probe, NULL);
-		// 	ga_error("BBR: Entering standby state\n");
-		// 	break;
 		case STANDBY:
 			/**
 			 * TODO: Standby state should revert probe if the probe
 			 * results in no significant increase in latest throughput.
 			 */
+			// Detect queues in bottleneck
 			if (state->latest_rtt - state->rtprop > 5000) { // 5ms
 				gain = GAIN_STANDBY;
 				gettimeofday(&state->prev_probe, NULL);
@@ -201,8 +193,8 @@ float bbr_gain(bbr_state_t *state) {
 					if (state->bitrate < BBR_BITRATE_MAXIMUM) {
 						ga_error("BBR: Probing bandwidth\n");
 						gain = GAIN_PROBE;
-						gettimeofday(&state->prev_probe, NULL);
 					}
+					gettimeofday(&state->prev_probe, NULL);
 				}
 			}
 			break;
@@ -214,7 +206,7 @@ float bbr_gain(bbr_state_t *state) {
 void *
 bitrateadaptor_thread(void *param) {
 	struct timeval now, prev_ping, prev_bbr_cycle;
-	// Initial values
+	// Initial state
 	bbr_state.stage = WAITING;
 	bbr_state.start_0 = 0;
 	bbr_state.start_1 = 0;
